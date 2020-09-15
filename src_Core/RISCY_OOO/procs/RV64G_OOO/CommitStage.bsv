@@ -1123,7 +1123,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                         Bool flush_security = False; // flush for security when the flush csr is written
                         if(x.iType == Csr) begin
                             // write CSR
-                            csr_idx = x.csr;
+                            csr_idx = (x.orig_inst[19:15]!=0) ? x.csr : Invalid;
                             if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end
@@ -1150,7 +1150,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                         if(x.iType == Scr) begin
                             // inIfc.commitCsrInstOrInterrupt; // TODO Will there be statcounter for SCRs?
                             // write CSR
-                            scr_idx = x.scr;
+                            scr_idx = (x.orig_inst[19:15]!=0) ? x.scr : Invalid;
                             if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end
