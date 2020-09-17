@@ -529,7 +529,9 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     endmethod
 
     method Bool csrRead  = (isValid(csr) || isValid(scr)) && (orig_inst[11:7]!=0);
-    method Bool csrWrite = (isValid(csr) || isValid(scr)) && (orig_inst[19:15]!=0);
+    // This is a CSR write if this is a CSR instruction and there is a non-zero rs1 operand, or if this is a CSR immediate instruction.
+    method Bool csrWrite = (isValid(csr) && (orig_inst[19:15]!=0 || orig_inst[14]==1'b1))
+                        || (isValid(scr) && orig_inst[19:15]!=0);
 endmodule
 
 interface ROB_SpeculationUpdate;

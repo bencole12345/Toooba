@@ -115,8 +115,8 @@ interface RenameStage;
 endinterface
 
 module mkRenameStage#(RenameInput inIfc)(RenameStage);
-    Bool verbose = False;
-    Integer verbosity = 0;
+    Bool verbose = True;
+    Integer verbosity = 2;
 
     // func units
     FetchStage fetchStage = inIfc.fetchIfc;
@@ -890,7 +890,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                 if (csrRead && rob.outstandingCsrWrite) begin
                     stop = True;
                 end
-                Bool csrWrite = isCsr(dInst.iType) && (x.regs.src1 != Valid(Gpr(0)));
+                Bool csrWrite = isCsr(dInst.iType) && x.regs.src1 != Valid(Gpr(0)) && !isValid(dInst.imm);
                 if (csrWrite && rob.outstandingCsrRead) begin
                     stop = True;
                 end
