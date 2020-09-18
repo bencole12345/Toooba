@@ -220,7 +220,7 @@ function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot,
                 CapPipe cp = cast(pps.pc);
                 next_pc = getOffset(cp);
             end
-            tagged CSRData .csrdata: if (rot.iType == Csr) data = getAddr(csrdata);
+            //tagged CSRData .csrdata: if (rot.iType == Csr) data = getAddr(csrdata);
         endcase
     end
     CapPipe pipePc = cast(rot.ps.pc);
@@ -1123,7 +1123,10 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                         Bool flush_security = False; // flush for security when the flush csr is written
                         if(x.iType == Csr) begin
                             // write CSR
-                            csr_idx = (x.orig_inst[19:15]!=0 || x.orig_inst[14]==1) ? x.csr : Invalid;
+                            csr_idx = (case(x.orig_inst[14:12])
+                                fnCSRRWI: x.csr;
+                                default: ((x.orig_inst[19:15]!=0) ? x.csr : Invalid);
+                            endcase);
                             if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end
@@ -1150,7 +1153,10 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                         if(x.iType == Scr) begin
                             // inIfc.commitCsrInstOrInterrupt; // TODO Will there be statcounter for SCRs?
                             // write SCR
-                            scr_idx = (x.orig_inst[19:15]!=0) ? x.scr : Invalid;
+                            scr_idx = (case(x.orig_inst[14:12]) // Only works because CSpecialRW has inst[14:12]==0, so this only effects CSR writes that have been hijacked into SCR operations.
+                                fnCSRRWI: x.scr;
+                                default: ((x.orig_inst[19:15]!=0) ? x.scr : Invalid);
+                            endcase);
                             if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end

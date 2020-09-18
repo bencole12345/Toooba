@@ -886,11 +886,13 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                 if(isCsr(dInst.iType) && i != 0) begin
                     stop = True;
                 end
-                Bool csrRead  = isCsr(dInst.iType) && (x.regs.dst  != Valid(Gpr(0)));
+                Bool csrRead  = isCsr(dInst.iType) && (x.regs.dst  != Valid(Gpr(0)) || x.orig_inst[14:12]==fnCSRRSI || x.orig_inst[14:12]==fnCSRRCI);
                 if (csrRead && rob.outstandingCsrWrite) begin
                     stop = True;
                 end
-                Bool csrWrite = isCsr(dInst.iType) && x.regs.src1 != Valid(Gpr(0)) && !isValid(dInst.imm);
+                // Only CSRRSI and CSRRCI certainly write, but
+                // Leaving the simpler condition makes it a bit conservative.
+                Bool csrWrite = isCsr(dInst.iType) && (x.regs.src1 != Valid(Gpr(0)) || x.orig_inst[14:12]==fnCSRRWI);
                 if (csrWrite && rob.outstandingCsrRead) begin
                     stop = True;
                 end
