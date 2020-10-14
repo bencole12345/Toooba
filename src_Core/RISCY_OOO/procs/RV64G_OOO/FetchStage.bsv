@@ -111,6 +111,7 @@ endmodule
 interface FetchStage;
     // pipeline
     interface Vector#(SupSize, SupFifoDeq#(FromFetchStage)) pipelines;
+    method CapMem pcc;
 
     // tlb and mem connections
     interface ITlb iTlbIfc;
@@ -121,7 +122,7 @@ interface FetchStage;
 `endif
 
     // starting and stopping
-    method Action start(PredState ps
+    method Action start(CapPipe start_pcc
 `ifdef RVFI_DII
         , Dii_Parcel_Id parcel_id
 `endif
@@ -130,7 +131,7 @@ interface FetchStage;
 
     // redirection methods
     method Action setWaitRedirect;
-    method Action redirect(PredState ps
+    method Action redirect(CapPipe new_pcc
 `ifdef RVFI_DII
         , Dii_Parcel_Id parcel_id
 `endif
@@ -485,6 +486,8 @@ module mkFetchStage(FetchStage);
     Reg#(Bool) waitForFlush <- mkReg(False);
 
     Ehr#(4, PredState) ps_reg <- mkEhr(nullPredState);
+    Ehr#(4, CapMem) pcc_reg <- mkEhr(nullCap);
+    Bool cap_mode = getFlags(pcc_reg[0])==1;
 `ifdef RVFI_DII
     Ehr#(4, Dii_Parcel_Id) dii_pid_reg <- mkEhr(0);
 `endif
@@ -948,7 +951,7 @@ module mkFetchStage(FetchStage);
                if (in.decode_epoch == decode_epoch_local) begin
                   doAssert(in.main_epoch == f_main_epoch, "main epoch must match");
 
-                  let decode_result = decode(in.inst, getFlags(inst_data[i].ps.pc)==1);    // Decode 32b inst, or 32b expansion of 16b inst
+                  let decode_result = decode(in.inst, cap_mode);    // Decode 32b inst, or 32b expansion of 16b inst
 
                   // update cause if decode exception and no earlier (TLB) exception
                   if (!isValid(cause)) begin
@@ -1143,17 +1146,19 @@ module mkFetchStage(FetchStage);
     interface iTlbIfc = iTlb;
     interface iMemIfc = iMem;
     interface mmioIfc = mmio.toCore;
+    method CapMem pcc = pcc_reg[0];
 `ifdef RVFI_DII
     interface diiIfc = dii.toCore;
 `endif
 
     method Action start(
-        PredState start_ps
+        CapPipe start_pcc
 `ifdef RVFI_DII
         , Dii_Parcel_Id dii_pid
 `endif
     );
-        ps_reg[0] <= start_ps;
+        ps_reg[0] <= setPcUnsafe(ps_reg[0], getAddr(start_pcc));
+        pcc_reg[0] <= cast(start_pcc);
 `ifdef RVFI_DII
         dii_pid_reg[0] <= dii_pid;
 `endif
@@ -1170,13 +1175,14 @@ module mkFetchStage(FetchStage);
         setWaitRedirect_redirect_conflict.wset(?); // conflict with redirect
     endmethod
     method Action redirect(
-        PredState new_ps
+        CapPipe new_pcc
 `ifdef RVFI_DII
         , Dii_Parcel_Id dii_pid
 `endif
     );
-        if (verbose) $display("Redirect: newpc %h, old f_main_epoch %d, new f_main_epoch %d",new_ps,f_main_epoch,f_main_epoch+1);
-        ps_reg[ps_redirect_port] <= new_ps;
+        if (verbose) $display("Redirect: newpc %h, old f_main_epoch %d, new f_main_epoch %d",new_pcc,f_main_epoch,f_main_epoch+1);
+        ps_reg[ps_redirect_port] <= setPcUnsafe(ps_reg[ps_redirect_port], getAddr(new_pcc));
+        pcc_reg[ps_redirect_port] <= cast(new_pcc);
 `ifdef RVFI_DII
         dii_pid_reg[ps_redirect_port] <= dii_pid;
         if (verbose) $display("%t Redirect: dii_pid_reg %d", $time(), dii_pid);

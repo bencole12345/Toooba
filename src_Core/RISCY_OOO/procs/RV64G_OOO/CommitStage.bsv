@@ -114,7 +114,7 @@ interface CommitInput;
     method Action setReconcileD; // recocile D$
     // redirect
     method Action killAll;
-    method Action redirectPs(PredState trap_ps
+    method Action redirectPcc(CapPipe trap_pcc
 `ifdef RVFI_DII
         , Dii_Parcel_Id dii_pid
 `endif
@@ -170,7 +170,7 @@ endinterface
 // we apply actions the end of commit rule
 // use struct to record actions to be done
 typedef struct {
-    PredState ps;
+    CapMem pcc;
     Addr addr;
     Trap trap;
     Bit #(32) orig_inst;
@@ -191,7 +191,7 @@ typedef struct {
     Data mtvec;
 } TraceStateBundle deriving(Bits, FShow);
 
-function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot, Dii_Id traceCnt, TraceStateBundle tsb, Data next_pc);
+function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot, Dii_Id traceCnt, TraceStateBundle tsb, Data next_pc, CapMem pcc);
     Addr addr = 0;
     Data data = 0;
     Data wdata = 0;
@@ -205,7 +205,7 @@ function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot,
                 rd = regNum;
             end
         end
-        case (rot.pps_vaddr_csrData) matches
+        case (rot.ppc_vaddr_csrData) matches
             tagged VAddr .vaddr: begin
                 addr = vaddr;
                 case (rot.lsqTag) matches
@@ -216,14 +216,14 @@ function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot,
                     end
                 endcase
             end
-            tagged PPS .pps: begin
-                CapPipe cp = cast(pps.pc);
+            tagged PPC .ppc: begin
+                CapPipe cp = cast(ppc);
                 next_pc = getOffset(cp);
             end
             //tagged CSRData .csrdata: if (rot.iType == Csr) data = getAddr(csrdata);
         endcase
     end
-    CapPipe pipePc = cast(rot.ps.pc);
+    CapPipe pipePc = cast(setAddrUnsafe(pcc, rot.ps.pc));
     return tagged Valid RVFI_DII_Execution {
         rvfi_order: zeroExtend(pack(traceCnt)),
         rvfi_trap: isValid(rot.trap),
@@ -502,6 +502,9 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
     // cycle handles trap, redirect and handles system consistency
     Reg#(Maybe#(CommitTrap)) commitTrap <- mkReg(Invalid); // saves new pc here
 
+    // The pcc written by the last branch instruction. All following instructions will share these bounds and permissions.
+    Reg#(CapMem) pcc_reg <- mkReg(almightyCap);
+
     // maintain system consistency when system state (CSR) changes or for security
     function Action makeSystemConsistent(Bool flushTlb,
                                          Bool flushSecurity,
@@ -647,12 +650,12 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
         // record trap info
         Addr vaddr = 0;
-        if(x.pps_vaddr_csrData matches tagged VAddr .va) begin
+        if(x.ppc_vaddr_csrData matches tagged VAddr .va) begin
             vaddr = va;
         end
         let commitTrap_val = Valid (CommitTrap {
             trap: trap,
-            ps: x.ps,
+            pcc: setAddrUnsafe(pcc_reg, getPc(x.ps)),
             addr: vaddr,
             orig_inst: x.orig_inst
 `ifdef RVFI_DII
@@ -747,7 +750,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                                        ? 4
                                        : 1));
              csrf.dcsr_cause_write (dcsr_cause);
-             csrf.dpc_write (cast(trap.pc));
+             csrf.dpc_write (cast(trap.pcc));
 
              // Tell fetch stage to wait for redirect
              // Note: rule doCommitTrap_flush may have done this already; redundant call is ok.
@@ -764,16 +767,17 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
        if (! debugger_halt) begin
           // trap handling & redirect
-          let trap_updates <- csrf.trap(trap.trap, cast(trap.ps.pc), trap.addr, trap.orig_inst);
-          PredState new_ps = PredState{pc: cast(trap_updates.new_pcc)};
-          inIfc.redirectPs(new_ps
+          let trap_updates <- csrf.trap(trap.trap, cast(trap.pcc), trap.addr, trap.orig_inst);
+          PredState new_ps = PredState{pc: getAddr(trap_updates.new_pcc)};
+          pcc_reg <= cast(trap_updates.new_pcc);
+          inIfc.redirectPcc(trap_updates.new_pcc
 `ifdef RVFI_DII
                            , trap.x.dii_pid + (is_16b_inst(trap.orig_inst) ? 1 : 2)
 `endif
           );
 `ifdef RVFI
           Rvfi_Traces rvfis = replicate(tagged Invalid);
-          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getAddr(new_ps.pc));
+          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getPc(new_ps), pcc_reg);
           rvfiQ.enq(rvfis);
           traceCnt <= traceCnt + 1;
 `endif
@@ -816,7 +820,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
         // kill everything, redirect, and increment epoch
         inIfc.killAll;
-        inIfc.redirectPs(x.ps
+        inIfc.redirectPcc(cast(setAddrUnsafe(pcc_reg, getPc(x.ps)))
 `ifdef RVFI_DII
             , x.dii_pid
 `endif
@@ -878,7 +882,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             // write CSR
             let csr_idx = validValue(x.csr);
             Data csr_data = ?;
-            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
+            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 csr_data = getAddr(d);
             end
             else begin
@@ -907,7 +911,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             // write CSR
             let scr_idx = validValue(x.scr);
             CapMem scr_data = ?;
-            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
+            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 scr_data = d;
             end
             else begin
@@ -917,7 +921,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         end
 
         // redirect (Sret and Mret redirect pc is got from CSRF)
-        CapMem next_pc = x.pps_vaddr_csrData matches tagged PPS .pps ? pps.pc : addPc(x.ps, 4).pc;
+        CapMem next_pc = x.ppc_vaddr_csrData matches tagged PPC .ppc ? ppc : setAddrUnsafe(pcc_reg, getPc(addPc(x.ps, 4)));
         doAssert(getAddr(next_pc) == getPc(x.ps) + 4, "ppc must be pc + 4");
 `ifdef INCLUDE_TANDEM_VERIF
         Maybe #(RET_Updates) m_ret_updates = no_ret_updates;
@@ -936,7 +940,8 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
            m_ret_updates = tagged Valid ret_updates;
 `endif
         end
-        inIfc.redirectPs(PredState{pc: next_pc}
+        pcc_reg <= next_pc;
+        inIfc.redirectPcc(cast(next_pc)
 `ifdef RVFI_DII
             , x.dii_pid + (is_16b_inst(x.orig_inst) ? 1 : 2)
 `endif
@@ -944,9 +949,9 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
 `ifdef RVFI
         Rvfi_Traces rvfis = replicate(tagged Invalid);
-        x.pps_vaddr_csrData = tagged PPS PredState{pc: next_pc};
+        x.ppc_vaddr_csrData = tagged PPC next_pc;
         CapPipe cp = cast(next_pc);
-        rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp));
+        rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp), pcc_reg);
         rvfiQ.enq(rvfis);
         traceCnt <= traceCnt + 1;
 `endif
@@ -1094,6 +1099,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         CapMem   last_pcc  = rg_last_pcc;
         Bit#(32) last_inst = rg_last_inst;
 `endif
+        CapMem next_pcc = pcc_reg;
         // compute what actions to take
         for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
             if(!stop && rob.deqPort[i].canDeq) begin
@@ -1108,8 +1114,8 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                 else begin
                     if (verbose) $display("%t : [doCommitNormalInst - %d] ", $time(), i, fshow(inst_tag), " ; ", fshow(x));
 `ifdef RVFI
-                    CapPipe pipePc = cast(x.ps.pc);
-                    rvfis[i] = genRVFI(x, traceCnt + zeroExtend(whichTrace), getTSB(), getOffset(pipePc) + (is_16b_inst(x.orig_inst) ? 2:4));
+                    CapPipe pipePc = cast(setAddrUnsafe(pcc_reg, getPc(x.ps)));
+                    rvfis[i] = genRVFI(x, traceCnt + zeroExtend(whichTrace), getTSB(), getOffset(pipePc) + (is_16b_inst(x.orig_inst) ? 2:4), pcc_reg);
                     whichTrace = whichTrace + 1;
 `endif
 
@@ -1127,7 +1133,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                                 fnCSRRWI: x.csr;
                                 default: ((x.orig_inst[19:15]!=0) ? x.csr : Invalid);
                             endcase);
-                            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
+                            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end
                             else begin
@@ -1157,7 +1163,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                                 fnCSRRWI: x.scr;
                                 default: ((x.orig_inst[19:15]!=0) ? x.scr : Invalid);
                             endcase);
-                            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
+                            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                                 csr_data = d;
                             end
                             else begin
@@ -1194,6 +1200,9 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                     // every inst here should have been renamed, commit renaming
                     regRenamingTable.commit[i].commit;
                     doAssert(x.claimed_phy_reg, "should have renamed");
+                    if(x.ppc_vaddr_csrData matches tagged PPC .pcc) begin
+                        next_pcc = pcc;
+                    end
 
 `ifdef RENAME_DEBUG
                     // send debug msg for rename error
@@ -1244,6 +1253,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         rg_last_pcc  <= last_pcc;
         rg_last_inst <= last_inst;
 `endif
+        pcc_reg <= next_pcc;
 
         if (csr_idx matches tagged Valid .idx) begin
             // notify commit of CSR (so MMIO pRq may be handled)

@@ -46,8 +46,7 @@ function Maybe#(PredState) decodeBrPred( PredState ps, DecodedInst dInst, Bool h
   PredState pcPlusN = addPc(ps, (is_32b_inst ? 4 : 2));
   Data imm_val = truncate(fromMaybe(?, getDInstImm(dInst)));
   Maybe#(PredState) nextPs = tagged Invalid;
-  CapPipe pcPipe = cast(ps.pc);
-  PredState jTarget = PredState{pc: cast(incOffset(pcPipe, imm_val).value)};
+  PredState jTarget = setPcUnsafe(ps, getPc(ps) + imm_val);
   if( dInst.iType == J ) begin
     nextPs = tagged Valid jTarget;
   end else if( dInst.iType == Br ) begin

@@ -555,17 +555,17 @@ instance DefaultValue#(VMInfo);
 endinstance
 
 typedef struct {
-    CapMem pc;
+    Addr pc;
 } PredState deriving (Bits, Eq, FShow);
-PredState nullPredState = PredState{pc: nullCap};
+PredState nullPredState = PredState{pc: 0};
 
-function Addr getPc(PredState ps) = getAddr(ps.pc);
+function Addr getPc(PredState ps) = ps.pc;
 function PredState setPcUnsafe(PredState ps, Addr pc);
-    ps.pc = setAddrUnsafe(ps.pc, pc);
+    ps.pc = pc;
     return ps;
 endfunction
 function PredState addPc(PredState ps, Bit#(8) inc);
-    ps.pc = addAddrUnsafe(ps.pc, signExtend(inc));
+    ps.pc = ps.pc + signExtend(inc);
     return ps;
 endfunction
 

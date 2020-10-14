@@ -376,6 +376,7 @@ module mkCore#(CoreId coreId)(Core);
             end
             let aluExeInput = (interface AluExeInput;
                 method sbCons_lazyLookup = sbCons.lazyLookup[aluRdPort(i)].get;
+                method pcc = fetchStage.pcc;
                 method rf_rd1 = cast(rf.read[aluRdPort(i)].rd1);
                 method rf_rd2 = cast(rf.read[aluRdPort(i)].rd2);
                 method csrf_rd = csrf.rd;
@@ -388,13 +389,13 @@ module mkCore#(CoreId coreId)(Core);
                 method setRegReadyAggr = writeAggr(aluWrAggrPort(i));
                 interface sendBypass = sendBypassIfc;
                 method writeRegFile = writeCons(aluWrConsPort(i));
-                method Action redirect(PredState new_ps, SpecTag spec_tag, InstTag inst_tag);
+                method Action redirect(CapPipe new_pc, SpecTag spec_tag, InstTag inst_tag);
                     if (verbose) begin
-                        $display("[ALU redirect - %d] ", i, fshow(new_ps),
+                        $display("[ALU redirect - %d] ", i, fshow(new_pc),
                                  "; ", fshow(spec_tag), "; ", fshow(inst_tag));
                     end
                     epochManager.incrementEpoch;
-                    fetchStage.redirect(new_ps
+                    fetchStage.redirect(new_pc
 `ifdef RVFI_DII
                     , inst_tag.dii_next_pid
 `endif
@@ -638,7 +639,7 @@ module mkCore#(CoreId coreId)(Core);
         method setReconcileI = reconcile_i._write(True);
         method setReconcileD = reconcile_d._write(True);
         method killAll = coreFix.killAll;
-        method redirectPs = fetchStage.redirect;
+        method redirectPcc = fetchStage.redirect;
         method setFetchWaitRedirect = fetchStage.setWaitRedirect;
 `ifdef INCLUDE_GDB_CONTROL
         method setFetchWaitFlush    = fetchStage.setWaitFlush;
@@ -1359,7 +1360,7 @@ module mkCore#(CoreId coreId)(Core);
 `ifdef INCLUDE_GDB_CONTROL
             if (!running) renameStage.debug_halt_req;
 `endif
-            fetchStage.start(PredState{pc: setAddrUnsafe(almightyCap, startpc)}
+            fetchStage.start(setAddrUnsafe(almightyCap, startpc)
 `ifdef RVFI_DII
                 , 0
 `endif

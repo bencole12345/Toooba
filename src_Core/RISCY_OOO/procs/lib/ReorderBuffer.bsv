@@ -53,18 +53,18 @@ import ISA_Decls_CHERI::*;
 
 import Cur_Cycle :: *;
 
-// right after execution, full_result has more up-to-date data (e.g. pps of mispredicted branch)
+// right after execution, full_result has more up-to-date data (e.g. ppc of mispredicted branch)
 // some parts of full_result are for verification
 // but some are truly used for execution
 
-// pps is only used by iType = BR/J/JR
+// ppc is only used by iType = BR/J/JR
 // csrData is only used by iType = Csr
 // vaddr is only used by mem inst in page fault
 typedef union tagged {
-    PredState PPS; // at default store pps
+    CapMem PPC; // at default store ppc
     Addr   VAddr; // for mem inst, store vaddr
     CapMem CSRData; // for Csr inst, store csr_data
-} PPSVAddrCSRData deriving(Bits, FShow);
+} PPCVAddrCSRData deriving(Bits, FShow);
 
 `ifdef RVFI
 typedef struct {
@@ -88,7 +88,7 @@ typedef struct {
     Maybe#(CSR)        csr;
     Bool               claimed_phy_reg; // whether we need to commmit renaming
     Maybe#(Trap)       trap;
-    PPSVAddrCSRData    pps_vaddr_csrData;
+    PPCVAddrCSRData    ppc_vaddr_csrData;
     Bit#(5)            fflags;
     Bool               will_dirty_fpu_state; // True means 2'b11 will be written to FS
     RobInstState       rob_inst_state; // was executed (i.e. can commit)
@@ -129,7 +129,7 @@ interface Row_setExecuted_doFinishAlu;
 `ifdef INCLUDE_TANDEM_VERIF
         CapPipe dst_data,
 `endif
-        PPSVAddrCSRData csrData,
+        PPCVAddrCSRData csrData,
         Maybe#(CSR_XCapCause) cause
 `ifdef RVFI
         , ExtraTraceBundle tb
@@ -187,7 +187,7 @@ interface ReorderBufferRowEhr#(numeric type aluExeNum, numeric type fpuMulDivExe
     // in-order core sets LSQ tag after getting out of issue queue
     method Action setLSQTag(LdStQTag t, Bool isFence);
 `endif
-    // get original PS/PPS before execution, EHR port 0 will suffice
+    // get original PS/PPC before execution, EHR port 0 will suffice
     method PredState getOrigPS;
     method PredState getOrigPredPS;
     method Bit #(32) getOrig_Inst;
@@ -207,9 +207,9 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     Integer trap_enq_port = 1 + valueof(aluExeNum);
 
     Integer pvc_deq_port = 0;
-    function Integer pvc_finishAlu_port(Integer i) = i; // write pps_vaddr_csrData
-    Integer pvc_finishMem_port = valueof(aluExeNum); // write pps_vaddr_csrData
-    Integer pvc_enq_port = 1 + valueof(aluExeNum); // write pps_vaddr_csrData
+    function Integer pvc_finishAlu_port(Integer i) = i; // write ppc_vaddr_csrData
+    Integer pvc_finishMem_port = valueof(aluExeNum); // write ppc_vaddr_csrData
+    Integer pvc_enq_port = 1 + valueof(aluExeNum); // write ppc_vaddr_csrData
 
     Integer fflags_deq_port = 0;
     function Integer fflags_finishFpuMulDiv_port(Integer i) = i; // write fflags
@@ -267,7 +267,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     Reg#(Maybe#(SCR))                                               scr                  <- mkRegU;
     Reg#(Bool)                                                      claimed_phy_reg      <- mkRegU;
     Ehr#(TAdd#(2, aluExeNum), Maybe#(Trap))                         trap                 <- mkEhr(?);
-    Ehr#(TAdd#(2, aluExeNum), PPSVAddrCSRData)                      pps_vaddr_csrData    <- mkEhr(?);
+    Ehr#(TAdd#(2, aluExeNum), PPCVAddrCSRData)                      ppc_vaddr_csrData    <- mkEhr(?);
     Ehr#(TAdd#(1, fpuMulDivExeNum), Bit#(5))                        fflags               <- mkEhr(?);
     Reg#(Bool)                                                      will_dirty_fpu_state <- mkRegU;
     Ehr#(TAdd#(3, TAdd#(fpuMulDivExeNum, aluExeNum)), RobInstState) rob_inst_state       <- mkEhr(?);
@@ -285,11 +285,11 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     Ehr#(TAdd#(2, TAdd#(fpuMulDivExeNum, aluExeNum)), ExtraTraceBundle) traceBundle      <- mkEhr(?);
 `endif
 
-    // wires to get stale (EHR port 0) values of PPS
-    Wire#(PredState) predPsWire <- mkBypassWire;
+    // wires to get stale (EHR port 0) values of PPC
+    Wire#(CapMem) predPcWire <- mkBypassWire;
     (* fire_when_enabled, no_implicit_conditions *)
-    rule setPsWires;
-        predPsWire <= pps_vaddr_csrData[0] matches tagged PPS .a ? a : nullPredState;
+    rule setPcWires;
+        predPcWire <= ppc_vaddr_csrData[0] matches tagged PPC .a ? a : nullCap;
     endrule
 
     Vector#(aluExeNum, Row_setExecuted_doFinishAlu) aluSetExe;
@@ -299,7 +299,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
 `ifdef INCLUDE_TANDEM_VERIF
                 CapPipe dst_data,
 `endif
-                PPSVAddrCSRData csrDataOrPPS,
+                PPCVAddrCSRData csrDataOrPPC,
                 Maybe#(CSR_XCapCause) cause
 `ifdef RVFI
                 , ExtraTraceBundle tb
@@ -312,15 +312,15 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
                 rg_dst_data <= dst_data;
 `endif
 
-                // update PPS or csrData (vaddr is always useless for ALU results)
-                pps_vaddr_csrData[pvc_finishAlu_port(i)] <= csrDataOrPPS;
+                // update PPC or csrData (vaddr is always useless for ALU results)
+                ppc_vaddr_csrData[pvc_finishAlu_port(i)] <= csrDataOrPPC;
                 if (cause matches tagged Valid .exp)
                     trap[trap_finishAlu_port(i)] <= Valid (CapException (exp));
 `ifdef RVFI
                 //$display("%t : traceBundle = ", $time(), fshow(tb), " in Row_setExecuted_doFinishAlu for %x", ps);
                 traceBundle[traceBundle_finishAlu_port(i)] <= tb;
 `endif
-                if (csrDataOrPPS matches tagged CSRData .unused)
+                if (csrDataOrPPC matches tagged CSRData .unused)
                     doAssert((isValid(csr) || isValid(scr)), "Either a csr write or an scr write is expected if we receive valid CSRData");
             endmethod
         endinterface);
@@ -354,7 +354,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
     end
 
     method PredState getOrigPS = ps;
-    method PredState getOrigPredPS = predPsWire;
+    method PredState getOrigPredPS = PredState{pc: getAddr(predPcWire)};
     method Bit #(32) getOrig_Inst = orig_inst;
 
     interface setExecuted_doFinishAlu = aluSetExe;
@@ -378,7 +378,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
             doAssert(iType == St, "must be St");
         end
         // update VAddr
-        pps_vaddr_csrData[pvc_finishMem_port] <= VAddr (vaddr);
+        ppc_vaddr_csrData[pvc_finishMem_port] <= VAddr (vaddr);
 `ifdef RVFI
         //$display("%t : traceBundle = ", $time(), fshow(tb), " in setExecuted_doFinishMem for %x", ps);
         traceBundle[traceBundle_deqLSQ_port] <= tb;
@@ -421,7 +421,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
         scr <= x.scr;
         claimed_phy_reg <= x.claimed_phy_reg;
         trap[trap_enq_port] <= x.trap;
-        pps_vaddr_csrData[pvc_enq_port] <= x.pps_vaddr_csrData;
+        ppc_vaddr_csrData[pvc_enq_port] <= x.ppc_vaddr_csrData;
         fflags[fflags_enq_port] <= x.fflags;
         will_dirty_fpu_state <= x.will_dirty_fpu_state;
         rob_inst_state[state_enq_port] <= x.rob_inst_state;
@@ -467,7 +467,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
             scr: scr,
             claimed_phy_reg: claimed_phy_reg,
             trap: trap[trap_deq_port],
-            pps_vaddr_csrData: pps_vaddr_csrData[pvc_deq_port],
+            ppc_vaddr_csrData: ppc_vaddr_csrData[pvc_deq_port],
             fflags: fflags[fflags_deq_port],
             will_dirty_fpu_state: will_dirty_fpu_state,
             rob_inst_state: rob_inst_state[state_deq_port],
@@ -481,7 +481,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
             dii_pid: dii_pid,
 `endif
 `ifdef RVFI
-            traceBundle: case (pps_vaddr_csrData[pvc_deq_port]) matches
+            traceBundle: case (ppc_vaddr_csrData[pvc_deq_port]) matches
                             tagged VAddr .v: begin
                                 case (lsqTag) matches
                                     tagged Ld .l: return traceBundle[traceBundle_deq_port];
@@ -579,7 +579,7 @@ interface ROB_setExecuted_doFinishAlu;
 `ifdef INCLUDE_TANDEM_VERIF
                       Data dst_data,
 `endif
-                      PPSVAddrCSRData csrData,
+                      PPCVAddrCSRData csrData,
                       Maybe#(CSR_XCapCause) cause
 `ifdef RVFI
                       , ExtraTraceBundle tb
@@ -650,7 +650,7 @@ interface SupReorderBuffer#(numeric type aluExeNum, numeric type fpuMulDivExeNum
     method Action setLSQTag(InstTag x, LdStQTag t, Bool isFence);
 `endif
 
-    // get original PS/PPS before execution, EHR port 0 will suffice
+    // get original PS/PPC before execution, EHR port 0 will suffice
     interface Vector#(TAdd#(1, aluExeNum), ROB_getOrigPS) getOrigPS;
     interface Vector#(aluExeNum, ROB_getOrigPredPS) getOrigPredPS;
     interface Vector#(aluExeNum, ROB_getOrig_Inst) getOrig_Inst;
@@ -1135,7 +1135,7 @@ module mkSupReorderBuffer#(
 `ifdef INCLUDE_TANDEM_VERIF
                 Data dst_data,
 `endif
-                PPSVAddrCSRData csrData,
+                PPCVAddrCSRData csrData,
                 Maybe#(CSR_XCapCause) cause
 `ifdef RVFI
                 , ExtraTraceBundle tb
@@ -1185,7 +1185,7 @@ module mkSupReorderBuffer#(
         endinterface);
     end
 
-    // get ps/pps ifc used by alu exe (also one ps for mem exe)
+    // get ps/ppc ifc used by alu exe (also one ps for mem exe)
     Vector#(TAdd#(1, aluExeNum), ROB_getOrigPS) getOrigPSIfc;
     Vector#(aluExeNum, ROB_getOrigPredPS) getOrigPredPSIfc;
     for(Integer i = 0; i < valueof(aluExeNum) + 1; i = i+1) begin

@@ -243,7 +243,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
         Maybe#(Trap) trap = tagged Invalid;
         let csr_state = csrf.decodeInfo;
         let pending_interrupt = csrf.pending_interrupt;
-        let new_exception = checkForException(x.dInst, x.regs, csr_state, x.ps.pc, x.orig_inst[1:0]==2'b11);
+        let new_exception = checkForException(x.dInst, x.regs, csr_state, setAddrUnsafe(fetchStage.pcc, x.ps.pc), x.orig_inst[1:0]==2'b11);
 
         // If Fpu regs are accessed, trap if mstatus_fs is "Off" (2'b00)
         Bool fpr_access = (   fn_ArchReg_is_FpuReg (x.regs.src1)
@@ -361,7 +361,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 claimed_phy_reg: False, // no renaming is done
                                 trap: firstTrap,
                                 // default values of FullResult
-                                pps_vaddr_csrData: VAddr (tval),
+                                ppc_vaddr_csrData: VAddr (tval),
                                 fflags: 0,
                                 ////////
                                 will_dirty_fpu_state: False,
@@ -561,7 +561,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 claimed_phy_reg: True, // XXX we always claim a free reg in rename
                                 trap: Invalid, // no trap
                                 // default values of FullResult
-                                pps_vaddr_csrData: PPS (pps), // default use PPS
+                                ppc_vaddr_csrData: PPC (setAddrUnsafe(fetchStage.pcc, pps.pc)), // default use PPS
                                 fflags: 0,
                                 ////////
                                 will_dirty_fpu_state: will_dirty_fpu_state,
@@ -862,7 +862,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                 let arch_regs = x.regs;
                 let cause = x.cause;
 
-                CapMem fallthrough_pc = addPc(ps, ((orig_inst[1:0] == 2'b11) ? 4 : 2)).pc;
+                PredState fallthrough_pc = addPc(ps, ((orig_inst[1:0] == 2'b11) ? 4 : 2));
 
                 // check for wrong path, if wrong path, don't process it, leave to the other rule in next cycle
                 if(!epochManager.checkEpoch[i].check(main_epoch)) begin
@@ -1014,7 +1014,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                 spec_tag: spec_tag,
                                 regs_ready: regs_ready_aggr // fpu mul div recv bypass
                             });
-                            doAssert(pps.pc == fallthrough_pc, "FpuMulDiv next PC is not PC+4/PC+2");
+                            doAssert(pps == fallthrough_pc, "FpuMulDiv next PC is not PC+4/PC+2");
                             doAssert(!isValid(dInst.csr), "FpuMulDiv never explicitly read/write CSR");
                             doAssert(!isValid(spec_tag), "should not have spec tag");
                         end
@@ -1048,7 +1048,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                         regs_ready: regs_ready_aggr // mem currently recv bypass
                                     });
                                 end
-                                doAssert(pps.pc == fallthrough_pc, "Mem next PC is not PC+4/PC+2");
+                                doAssert(pps == fallthrough_pc, "Mem next PC is not PC+4/PC+2");
                                 doAssert(!isValid(dInst.csr), "Mem never explicitly read/write CSR");
                                 doAssert((dInst.iType != Fence) == isValid(dInst.imm),
                                          "Mem (non-Fence) needs imm for virtual addr");
@@ -1119,7 +1119,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                                                 claimed_phy_reg: True, // XXX we always claim a free reg in rename
                                                 trap: Invalid, // no trap
                                                 // default values of FullResult
-                                                pps_vaddr_csrData: PPS (pps), // default use PPS
+                                                ppc_vaddr_csrData: PPC (setAddrUnsafe(fetchStage.pcc, pps.pc)), // default use PPS
                                                 fflags: 0,
                                                 ////////
                                                 will_dirty_fpu_state: will_dirty_fpu_state,
