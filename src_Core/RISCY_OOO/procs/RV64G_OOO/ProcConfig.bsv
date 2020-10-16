@@ -176,21 +176,21 @@
     `define sizeSup 2
 
     // ROB
-    `define ROB_SIZE 64
+    `define ROB_SIZE 32
 
     // speculation
-    `define NUM_EPOCHS 12
-    `define NUM_SPEC_TAGS 12
+    `define NUM_EPOCHS 4
+    `define NUM_SPEC_TAGS 4
 
     // LSQ
-    `define LDQ_SIZE 24
-    `define STQ_SIZE 14
-    `define SB_SIZE 4
+    `define LDQ_SIZE 8
+    `define STQ_SIZE 4
+    `define SB_SIZE 2
 
     // reservation station sizes
-    `define RS_ALU_SIZE 16
-    `define RS_MEM_SIZE 16
-    `define RS_FPUMULDIV_SIZE 16
+    `define RS_ALU_SIZE 8
+    `define RS_MEM_SIZE 4
+    `define RS_FPUMULDIV_SIZE 4
 
 `endif
 
