@@ -4,7 +4,7 @@ package Proc;
 
 // Copyright (c) 2018 Massachusetts Institute of Technology
 // Portions Copyright (c) 2019-2020 Bluespec, Inc.
-//
+// 
 // Permission is hereby granted, free of charge, to any person
 // obtaining a copy of this software and associated documentation
 // files (the "Software"), to deal in the Software without
@@ -12,10 +12,10 @@ package Proc;
 // modify, merge, publish, distribute, sublicense, and/or sell copies
 // of the Software, and to permit persons to whom the Software is
 // furnished to do so, subject to the following conditions:
-//
+// 
 // The above copyright notice and this permission notice shall be
 // included in all copies or substantial portions of the Software.
-//
+// 
 // THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
 // EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
 // MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
@@ -288,22 +288,7 @@ module mkProc (Proc_IFC);
 
 `ifdef INCLUDE_GDB_CONTROL
    // run/halt, gpr, mem and csr control goes to core
-   interface Server  hart0_run_halt_server;
-      interface Put#(Bool) request;
-         method Action Put#(Bool x) put;
-            for(Integer i = 0; i < valueof(CoreNum); i = i+1)
-               core[i].hart0_run_halt_server.request.put(x);
-         endmethod
-      endinterface
-      interface Get#(Bool) response;
-         method ActionValue#(Bool) get;
-            Vector#(Bool,i) resp;
-            for(Integer i = 0; i < valueof(CoreNum); i = i+1)
-               resp[i] = core[i].hart0_run_halt_server.response.get(x);
-            return resp[0];
-         endmethod
-      endinterface
-   endinterface
+   interface Server  hart0_run_halt_server = core [0].hart0_run_halt_server;
 
    interface Put  hart0_put_other_req;
       method Action  put (Bit #(4) req);
