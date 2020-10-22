@@ -857,6 +857,9 @@ function Bool isSystem(IType iType) = (
     iType == Ecall || iType == Ebreak || /*iType == Csr || iType == Scr ||*/
     iType == SFence || iType == FenceI ||
     iType == Sret || iType == Mret
+`ifndef AGGRESSIVE_CSR_SCHEDULING
+    || iType == Csr
+`endif
 );
 
 function Bool isCsr(IType iType) = iType == Csr || iType == Scr;
