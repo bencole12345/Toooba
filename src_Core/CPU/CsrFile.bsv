@@ -474,6 +474,8 @@ module mkCsrFile #(Data hartid)(CsrFile);
 
     // mtval (mbadaddr in spike)
     Reg#(Data) mtval_csr <- mkCsrReg(0);
+    // Capability cause register
+    Reg#(Data) mccsr_csr <- mkReadOnlyReg(64'b11);
     // mip
     Vector#(4, Reg#(Bit#(1))) external_int_pend_vec = replicate(readOnlyReg(0));
     external_int_pend_vec[prvU] <- mkCsrReg(0);
@@ -584,6 +586,9 @@ module mkCsrFile #(Data hartid)(CsrFile);
 
     // stval (sbadaddr in spike)
     Reg#(Data) stval_csr <- mkCsrReg(0);
+    // Capability cause register
+    Reg#(Bit#(2)) gclg_reg <- mkCsrReg(0);
+    Reg#(Data) sccsr_csr = concatReg3 (readOnlyReg(60'b0), gclg_reg, readOnlyReg(2'b11));
     // sip: restricted view of mip
     Reg#(Data) sip_csr = concatReg9(
         readOnlyReg(54'b0),
@@ -654,8 +659,6 @@ module mkCsrFile #(Data hartid)(CsrFile);
    Reg #(Data) rg_tdata1  = concatReg3 (rg_tdata1_type, rg_tdata1_dmode, rg_tdata1_data);
    Reg #(Data) rg_tdata2  <- mkConfigRegU;
    Reg #(Data) rg_tdata3  <- mkConfigRegU;
-   // Capability cause register
-   Reg #(CapException) mccsr_reg <- mkCsrReg(unpack(0));
 
 `ifdef INCLUDE_GDB_CONTROL
    // DCSR is 32b even in RV64
@@ -777,6 +780,7 @@ module mkCsrFile #(Data hartid)(CsrFile);
             csrAddrSTVAL:      stval_csr;
             csrAddrSIP:        sip_csr;
             csrAddrSATP:       satp_csr;
+            csrAddrSCCSR:      sccsr_csr;
             // Machine CSRs
             csrAddrMSTATUS:    mstatus_csr;
             csrAddrMISA:       misa_csr;
@@ -796,7 +800,7 @@ module mkCsrFile #(Data hartid)(CsrFile);
             csrAddrMARCHID:    marchid_csr;
             csrAddrMIMPID:     mimpid_csr;
             csrAddrMHARTID:    mhartid_csr;
-            csrAddrMCCSR:      csr_capcause(mccsr_reg);
+            csrAddrMCCSR:      mccsr_csr;
 `ifdef SECURITY
             csrAddrMEVBASE:    mevbase_csr;
             csrAddrMEVMASK:    mevmask_csr;
@@ -1207,7 +1211,9 @@ module mkCsrFile #(Data hartid)(CsrFile);
             sv39: prv < prvM && vm_mode_sv39_reg == 1,
             exeReadable: mxr_reg == 1,
             userAccessibleByS: sum_reg == 1,
-            basePPN: ppn_reg
+            basePPN: ppn_reg,
+            globalCapLoadGenU: gclg_reg[1],
+            globalCapLoadGenS: gclg_reg[0]
 `ifdef SECURITY
             , sanctum_evbase:   mevbase_csr,
             sanctum_evmask:     mevmask_csr,
@@ -1234,7 +1240,9 @@ module mkCsrFile #(Data hartid)(CsrFile);
             sv39: prv < prvM && vm_mode_sv39_reg == 1,
             exeReadable: mxr_reg == 1,
             userAccessibleByS: sum_reg == 1,
-            basePPN: ppn_reg
+            basePPN: ppn_reg,
+            globalCapLoadGenU: gclg_reg[1],
+            globalCapLoadGenS: gclg_reg[0]
 `ifdef SECURITY
             , sanctum_evbase:   mevbase_csr,
             sanctum_evmask:     mevmask_csr,
