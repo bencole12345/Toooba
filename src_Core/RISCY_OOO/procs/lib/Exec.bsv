@@ -378,7 +378,7 @@ function ControlFlow getControlFlow(DecodedInst dInst, Data rVal1, Data rVal2, A
 endfunction
 */
 (* noinline *)
-function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, CapPipe pcc, CapPipe ppc, Bit #(32) orig_inst);
+function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, CapPipe pcc, PredState pps, Bit #(32) orig_inst);
     // just data, addr, and control flow
     CapPipe data = nullCap;
     CapPipe addr = nullCap;
@@ -419,7 +419,7 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
     end
 
     cf.nextPc = setKind(cf.nextPc, UNSEALED);
-    cf.mispredict = cf.nextPc != ppc;
+    cf.mispredict = getAddr(cf.nextPc) != getPc(pps);
 
     data = (case (dInst.iType)
             St          : rVal2;

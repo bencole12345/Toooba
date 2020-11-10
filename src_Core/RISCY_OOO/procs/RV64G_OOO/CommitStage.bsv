@@ -119,6 +119,7 @@ interface CommitInput;
         , Dii_Parcel_Id dii_pid
 `endif
     );
+    method CapMem pcc;
     method Action setFetchWaitRedirect;
 `ifdef INCLUDE_GDB_CONTROL
     method Action setFetchWaitFlush;
@@ -502,9 +503,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
     // cycle handles trap, redirect and handles system consistency
     Reg#(Maybe#(CommitTrap)) commitTrap <- mkReg(Invalid); // saves new pc here
 
-    // The pcc written by the last branch instruction. All following instructions will share these bounds and permissions.
-    Reg#(CapMem) pcc_reg <- mkReg(almightyCap);
-
     // maintain system consistency when system state (CSR) changes or for security
     function Action makeSystemConsistent(Bool flushTlb,
                                          Bool flushSecurity,
@@ -655,7 +653,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         end
         let commitTrap_val = Valid (CommitTrap {
             trap: trap,
-            pcc: setAddrUnsafe(pcc_reg, getPc(x.ps)),
+            pcc: setAddrUnsafe(inIfc.pcc, getPc(x.ps)),
             addr: vaddr,
             orig_inst: x.orig_inst
 `ifdef RVFI_DII
@@ -769,7 +767,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
           // trap handling & redirect
           let trap_updates <- csrf.trap(trap.trap, cast(trap.pcc), trap.addr, trap.orig_inst);
           PredState new_ps = PredState{pc: getAddr(trap_updates.new_pcc)};
-          pcc_reg <= cast(trap_updates.new_pcc);
           inIfc.redirectPcc(trap_updates.new_pcc
 `ifdef RVFI_DII
                            , trap.x.dii_pid + (is_16b_inst(trap.orig_inst) ? 1 : 2)
@@ -777,7 +774,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
           );
 `ifdef RVFI
           Rvfi_Traces rvfis = replicate(tagged Invalid);
-          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getPc(new_ps), pcc_reg);
+          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getPc(new_ps), inIfc.pcc);
           rvfiQ.enq(rvfis);
           traceCnt <= traceCnt + 1;
 `endif
@@ -820,7 +817,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
         // kill everything, redirect, and increment epoch
         inIfc.killAll;
-        inIfc.redirectPcc(cast(setAddrUnsafe(pcc_reg, getPc(x.ps)))
+        inIfc.redirectPcc(cast(setAddrUnsafe(inIfc.pcc, getPc(x.ps)))
 `ifdef RVFI_DII
             , x.dii_pid
 `endif
@@ -846,6 +843,12 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         doAssert(x.spec_bits == 0, "cannot have spec bits");
     endrule
 
+    Bool pcc_mispredict = False;
+    if (rob.deqPort[0].deq_data.ppc_vaddr_csrData matches tagged PPC .ppc) begin
+      CapPipe predicted_next_pcc = setAddr(cast(inIfc.pcc), getAddr(ppc)).value;
+      pcc_mispredict = (ppc != cast(predicted_next_pcc));
+    end
+
     // commit system inst
     rule doCommitSystemInst(
 `ifdef INCLUDE_GDB_CONTROL
@@ -855,7 +858,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         !isValid(rob.deqPort[0].deq_data.trap) &&
         !isValid(rob.deqPort[0].deq_data.ldKilled) &&
         rob.deqPort[0].deq_data.rob_inst_state == Executed &&
-        isSystem(rob.deqPort[0].deq_data.iType) &&
+        (isSystem(rob.deqPort[0].deq_data.iType) || pcc_mispredict) &&
         (! send_mip_csr_change_to_tv)
     );
         rob.deqPort[0].deq;
@@ -921,8 +924,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         end
 
         // redirect (Sret and Mret redirect pc is got from CSRF)
-        CapMem next_pc = x.ppc_vaddr_csrData matches tagged PPC .ppc ? ppc : setAddrUnsafe(pcc_reg, getPc(addPc(x.ps, 4)));
-        doAssert(getAddr(next_pc) == getPc(x.ps) + 4, "ppc must be pc + 4");
+        CapMem next_pc = x.ppc_vaddr_csrData matches tagged PPC .ppc ? ppc : setAddrUnsafe(inIfc.pcc, getPc(addPc(x.ps, 4)));
 `ifdef INCLUDE_TANDEM_VERIF
         Maybe #(RET_Updates) m_ret_updates = no_ret_updates;
 `endif
@@ -940,7 +942,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
            m_ret_updates = tagged Valid ret_updates;
 `endif
         end
-        pcc_reg <= next_pc;
         inIfc.redirectPcc(cast(next_pc)
 `ifdef RVFI_DII
             , x.dii_pid + (is_16b_inst(x.orig_inst) ? 1 : 2)
@@ -951,7 +952,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         Rvfi_Traces rvfis = replicate(tagged Invalid);
         x.ppc_vaddr_csrData = tagged PPC next_pc;
         CapPipe cp = cast(next_pc);
-        rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp), pcc_reg);
+        rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp), inIfc.pcc);
         rvfiQ.enq(rvfis);
         traceCnt <= traceCnt + 1;
 `endif
@@ -1050,6 +1051,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         !isValid(rob.deqPort[0].deq_data.ldKilled) &&
         rob.deqPort[0].deq_data.rob_inst_state == Executed &&
         !isSystem(rob.deqPort[0].deq_data.iType) &&
+        !pcc_mispredict &&
         (! send_mip_csr_change_to_tv)
     );
         // stop superscalar commit after we
@@ -1099,23 +1101,29 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         CapMem   last_pcc  = rg_last_pcc;
         Bit#(32) last_inst = rg_last_inst;
 `endif
-        CapMem next_pcc = pcc_reg;
+        CapMem next_pcc = inIfc.pcc;
         // compute what actions to take
         for(Integer i = 0; i < valueof(SupSize); i = i+1) begin
             if(!stop && rob.deqPort[i].canDeq) begin
                 let x = rob.deqPort[i].deq_data;
                 let inst_tag = rob.deqPort[i].getDeqInstTag;
 
+                Bool next_pcc_mispredict = False;
+                if (x.ppc_vaddr_csrData matches tagged PPC .ppc) begin
+                  CapPipe predicted_next_pcc = setAddr(cast(inIfc.pcc), getAddr(ppc)).value;
+                  next_pcc_mispredict = (ppc != cast(predicted_next_pcc));
+                end
+
                 // check can be committed or not
-                if(x.rob_inst_state != Executed || isValid(x.ldKilled) || isValid(x.trap) || isSystem(x.iType) || (isCsr(x.iType) && i != 0)) begin
+                if(x.rob_inst_state != Executed || isValid(x.ldKilled) || isValid(x.trap) || isSystem(x.iType) || next_pcc_mispredict || (isCsr(x.iType) && i != 0)) begin
                     // inst not ready for commit, or system inst, or trap, or killed, stop here
                     stop = True;
                 end
                 else begin
                     if (verbose) $display("%t : [doCommitNormalInst - %d] ", $time(), i, fshow(inst_tag), " ; ", fshow(x));
 `ifdef RVFI
-                    CapPipe pipePc = cast(setAddrUnsafe(pcc_reg, getPc(x.ps)));
-                    rvfis[i] = genRVFI(x, traceCnt + zeroExtend(whichTrace), getTSB(), getOffset(pipePc) + (is_16b_inst(x.orig_inst) ? 2:4), pcc_reg);
+                    CapPipe pipePc = cast(setAddrUnsafe(inIfc.pcc, getPc(x.ps)));
+                    rvfis[i] = genRVFI(x, traceCnt + zeroExtend(whichTrace), getTSB(), getOffset(pipePc) + (is_16b_inst(x.orig_inst) ? 2:4), inIfc.pcc);
                     whichTrace = whichTrace + 1;
 `endif
 
@@ -1253,7 +1261,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         rg_last_pcc  <= last_pcc;
         rg_last_inst <= last_inst;
 `endif
-        pcc_reg <= next_pcc;
+        //pcc_reg <= next_pcc;
 
         if (csr_idx matches tagged Valid .idx) begin
             // notify commit of CSR (so MMIO pRq may be handled)

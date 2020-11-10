@@ -640,6 +640,7 @@ module mkCore#(CoreId coreId)(Core);
         method setReconcileD = reconcile_d._write(True);
         method killAll = coreFix.killAll;
         method redirectPcc = fetchStage.redirect;
+        method pcc = fetchStage.pcc;
         method setFetchWaitRedirect = fetchStage.setWaitRedirect;
 `ifdef INCLUDE_GDB_CONTROL
         method setFetchWaitFlush    = fetchStage.setWaitFlush;

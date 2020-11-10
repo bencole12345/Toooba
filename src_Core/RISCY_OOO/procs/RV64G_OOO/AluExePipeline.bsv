@@ -307,28 +307,28 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
         let x = regToExe.data;
         if(verbose) $display("[doExeAlu] ", fshow(regToExe));
         // execution
-        CapMem myPcc = setAddrUnsafe(inIfc.pcc, x.ps.pc);
-        CapMem myPPcc = setAddrUnsafe(inIfc.pcc, x.pps.pc);
-        ExecResult exec_result = basicExec(x.dInst, x.rVal1, x.rVal2, cast(myPcc), cast(myPPcc), x.orig_inst);
+        CapPipe pcc = cast(inIfc.pcc);
+        CapPipe myPcc = setAddrUnsafe(pcc, x.ps.pc);
+        ExecResult exec_result = basicExec(x.dInst, x.rVal1, x.rVal2, myPcc, x.pps, x.orig_inst);
 
         if (verbosity > 0) begin
            $display ("AluExePipeline.doExeAlu: regToExe    = ", fshow (regToExe));
            $display ("AluExePipeline.doExeAlu: exec_result = ", fshow (exec_result));
            CapMem cm_npc = cast(exec_result.controlFlow.nextPc);
-           $display ("CapMem eq: %d, nextPc: %x, predPc: %x", cm_npc==myPcc, cm_npc, x.pps.pc);
+           $display ("CapMem eq: %d, nextPc: %x, predPc: %x", cm_npc==cast(myPcc), cm_npc, x.pps.pc);
         end
 
         // when inst needs to store csrData in ROB, it must have iType = Csr, cannot mispredict
         if(isValid(x.dInst.csr)) begin
             doAssert(x.dInst.iType == Csr, "Only Csr inst needs to update csrData in ROB");
             doAssert(!exec_result.controlFlow.mispredict, "Csr inst cannot mispredict");
-            doAssert(cast(exec_result.controlFlow.nextPc) == myPPcc && x.pps == addPc(x.ps, 4), "Csr inst ppc = pc+4");
+            doAssert(getAddr(exec_result.controlFlow.nextPc) == getPc(x.pps) && x.pps == addPc(x.ps, 4), "Csr inst ppc = pc+4");
         end
         // when inst needs to store scrData in ROB, it must have iType = Scr, cannot mispredict
         if(isValid(x.dInst.scr)) begin
             // doAssert(x.dInst.iType == Scr, "Only Scr inst needs to update scrData in ROB"); // Removed because normal instructions can read SCRs
             doAssert(!exec_result.controlFlow.mispredict, "Scr inst cannot mispredict");
-            doAssert(cast(exec_result.controlFlow.nextPc) == myPPcc && x.pps == addPc(x.ps, 4), "Scr inst ppc = pc+4");
+            doAssert(getAddr(exec_result.controlFlow.nextPc) == getPc(x.pps) && x.pps == addPc(x.ps, 4), "Scr inst ppc = pc+4");
         end
 
         // send bypass
@@ -401,7 +401,10 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
         if (x.controlFlow.mispredict) (* nosplit *) begin
             // wrong branch predictin, we must have spec tag
             doAssert(isValid(x.spec_tag), "mispredicted branch must have spec tag");
-            inIfc.redirect(cast(x.controlFlow.nextPc), validValue(x.spec_tag), x.tag);
+            // For SinglePCC, Execute must not change the bounds/perms of PCC, as branches are executed out-of-order.
+            // If the bounds are wrong, we will flush from Commit.
+            CapMem curPccPredAddr = setAddrUnsafe(inIfc.pcc, getAddr(x.controlFlow.nextPc));
+            inIfc.redirect(cast(curPccPredAddr), validValue(x.spec_tag), x.tag);
             // must be a branch, train branch predictor
             doAssert(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br, "only jr, br, cjalr, and ccall can mispredict");
             inIfc.fetch_train_predictors(FetchTrainBP {
