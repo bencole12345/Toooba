@@ -69,6 +69,7 @@ import L1CoCache::*;
 import MMIOInst::*;
 import CHERICap::*;
 import CHERICC_Fat::*;
+import ISA_Decls_CHERI::*;
 `ifdef RVFI_DII
 import RVFI_DII_Types::*;
 import Types::*;
@@ -185,7 +186,7 @@ typedef struct {
     Dii_Parcel_Id dii_pid;
 `endif
     Maybe#(PredState) pred_next_ps;
-    Maybe#(Exception) cause;
+    Maybe#(Trap) trap;
     Bool access_mmio; // inst fetch from MMIO
     Bool fetch3_epoch;
     Bool decode_epoch;
@@ -195,7 +196,7 @@ typedef struct {
 typedef struct {
     PredState pred_next_ps;
     Bool mispred_first_half;
-    Maybe#(Exception) cause;
+    Maybe#(Trap) trap;
     Addr tval;                 // in case of exception
     Bool decode_epoch;
     Epoch main_epoch;
@@ -211,7 +212,7 @@ typedef struct {
   Bool decode_epoch;
   Epoch main_epoch;
   Instruction inst;
-  Maybe#(Exception) cause;
+  Maybe#(Trap) trap;
 } InstrFromFetch3 deriving(Bits, Eq, FShow);
 
 typedef struct {
@@ -226,8 +227,8 @@ typedef struct {
   DecodedInst dInst;
   Bit #(32) orig_inst;    // original 16b or 32b instruction ([1:0] will distinguish 16b or 32b)
   ArchRegs regs;
-  Maybe#(Exception) cause;
-  Addr              tval;    // in case of exception
+  Maybe#(Trap) trap;
+  Addr tval;    // in case of exception
 } FromFetchStage deriving (Bits, Eq, FShow);
 
 // train next addr pred (BTB)
@@ -487,7 +488,11 @@ module mkFetchStage(FetchStage);
 
     Ehr#(4, PredState) ps_reg <- mkEhr(nullPredState);
     Ehr#(4, CapMem) pcc_reg <- mkEhr(nullCap);
+    CapPipe pcc_reg_pipe = cast(pcc_reg[0]);
+    let pcc_reg_top = getTop(pcc_reg_pipe);
+    let pcc_reg_base = getBase(pcc_reg_pipe);
     Bool cap_mode = getFlags(pcc_reg[0])==1;
+
 `ifdef RVFI_DII
     Ehr#(4, Dii_Parcel_Id) dii_pid_reg <- mkEhr(0);
 `endif
@@ -634,10 +639,13 @@ module mkFetchStage(FetchStage);
         // Get TLB response
         match {.phys_pc, .cause, .allow_cap} <- tlb_server.response.get;
 
+        Maybe#(Trap) trap = Invalid;
+        if (cause matches tagged Valid .c) trap = Valid(Exception(c));
+
         // Access main mem or boot rom if no TLB exception
         Bool access_mmio = False;
 `ifdef RVFI_DII
-        if (!isValid(cause)) begin
+        if (!isValid(trap)) begin
             // We 32-bit align PC (and increment nbSupX2 accordingly) in
             // doFetch1 for the real MMIO and ICache require 32-bit, so make
             // DII look like that by decrementing pid if PC is "odd"; this
@@ -645,7 +653,7 @@ module mkFetchStage(FetchStage);
             dii.fromDii.request.put(in.dii_pid);
         end
 `else
-        if (!isValid(cause)) begin
+        if (!isValid(trap)) begin
             case(mmio.getFetchTarget(phys_pc))
                 MainMem: begin
                     // Send ICache request
@@ -667,7 +675,7 @@ module mkFetchStage(FetchStage);
                 end
                 default: begin
                     // Access fault
-                    cause = Valid (excInstAccessFault);
+                    trap = Valid(Exception(excInstAccessFault));
 `ifdef DEBUG_WEDGE
                     lastImemReq <= 'hafafafafafafafaf;
 `endif
@@ -681,14 +689,13 @@ module mkFetchStage(FetchStage);
         end
 `endif
 `endif
-
         let out = Fetch2ToFetch3 {
             ps: in.ps,
 `ifdef RVFI_DII
             dii_pid: in.dii_pid,
 `endif
             pred_next_ps: in.pred_next_ps,
-            cause: cause,
+            trap: trap,
             access_mmio: access_mmio,
             fetch3_epoch: in.fetch3_epoch,
             decode_epoch: in.decode_epoch,
@@ -750,7 +757,7 @@ module mkFetchStage(FetchStage);
         let can_merge =    pending_n_items > 0
                         && pending_n_items < fromInteger(valueOf(SupSize))
                         && f22f3.notEmpty
-                        && !isValid(fetch3In.cause)
+                        && !isValid(fetch3In.trap)
                         && fetch3In.main_epoch == rg_pending_f32d.main_epoch
                         && fetch3In.decode_epoch == rg_pending_f32d.decode_epoch
                         && !mispred_first_half;
@@ -769,7 +776,7 @@ module mkFetchStage(FetchStage);
         Vector#(SupSizeX2,Maybe#(Instruction16)) inst_d = replicate(tagged Valid (0));
         if (drop_f22f3 || parse_f22f3) begin
             f22f3.deq();
-            if (!isValid(fetch3In.cause)) begin
+            if (!isValid(fetch3In.trap)) begin
 `ifdef RVFI_DII
                 inst_d <- dii.fromDii.response.get;
 `else
@@ -816,7 +823,7 @@ module mkFetchStage(FetchStage);
                 out = Fetch3ToDecode {
                     pred_next_ps: pred_next_ps,
                     mispred_first_half: mispred_first_half,
-                    cause: fetch3In.cause,
+                    trap: fetch3In.trap,
                     tval: getPc(fetch3In.ps),
                     decode_epoch: fetch3In.decode_epoch,
                     main_epoch: fetch3In.main_epoch
@@ -865,13 +872,13 @@ module mkFetchStage(FetchStage);
             if (n_items > fromInteger(valueOf(SupSize))) begin
                 nbSupOut = fromInteger(valueOf(SupSize) - 1);
 
-                if (!isValid(out.cause)) begin
+                if (!isValid(out.trap)) begin
                     next_pending_n_items = truncate(n_items - fromInteger(valueOf(SupSize)));
                     rg_pending_decode <= drop(v_items);
                     rg_pending_f32d <= Fetch3ToDecode {
                         pred_next_ps: out.pred_next_ps,
                         mispred_first_half: False,
-                        cause: tagged Invalid,
+                        trap: tagged Invalid,
                         tval: 0,
                         decode_epoch: out.decode_epoch,
                         main_epoch: out.main_epoch
@@ -940,9 +947,9 @@ module mkFetchStage(FetchStage);
                   decode_epoch: decodeIn.decode_epoch,
                   main_epoch: decodeIn.main_epoch,
                   inst: inst_data [i].inst,        // original 32b inst, or expanded version of 16b inst
-                  cause: decodeIn.cause
+                  trap: decodeIn.trap
                   };
-               let cause = in.cause;
+               let trap = in.trap;
                if (verbose)
                   $display("Decode: %0d in = ", i, fshow (in));
 
@@ -953,9 +960,24 @@ module mkFetchStage(FetchStage);
 
                   let decode_result = decode(in.inst, cap_mode);    // Decode 32b inst, or 32b expansion of 16b inst
 
-                  // update cause if decode exception and no earlier (TLB) exception
-                  if (!isValid(cause)) begin
-                     cause = decode_result.illegalInst ? tagged Valid excIllegalInst : tagged Invalid;
+                  if (!isValid(trap)) begin
+                     // update trap if decode exception and no earlier (TLB) exception
+                     if (decode_result.illegalInst)
+                         trap = Valid(Exception(excIllegalInst));
+                     if (zeroExtend(getPc(addPc(in.ps, ((inst_data[i].inst_kind == Inst_32b) ? 4 : 2))))  > pcc_reg_top)
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
+                     if (zeroExtend(getPc(in.ps)) < pcc_reg_base) // I think this condition is unnecessary due to checking in Fetch2
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
+                     if (!isValidCap(pcc_reg[0]))
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcTagViolation}));
+                     if (getKind(pcc_reg_pipe) != UNSEALED)
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcSealViolation}));
+                     if (!getHardPerms(pcc_reg[0]).permitExecute)
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcPermitXViolation}));
+                     if (zeroExtend(getPc(in.ps)) >= pcc_reg_top)
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
+                     if (zeroExtend(getPc(in.ps)) < pcc_reg_base)
+                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
                   end
 
                   let dInst = decode_result.dInst;
@@ -963,7 +985,7 @@ module mkFetchStage(FetchStage);
                   DirPredTrainInfo dp_train = ?; // dir pred training bookkeeping
 
                   // update predicted next pc
-                  if (!isValid(cause)) begin
+                  if (!isValid(trap)) begin
                      // direction predict
                      Bool pred_taken = False;
                      if(dInst.iType == Br) begin
@@ -1059,7 +1081,7 @@ module mkFetchStage(FetchStage);
                                            dInst: dInst,
                                            orig_inst: inst_data[i].orig_inst,
                                            regs: decode_result.regs,
-                                           cause: cause,
+                                           trap: trap,
                                            tval: decodeIn.tval
                                            };
                   out_fifo.enqS[i].enq(out);

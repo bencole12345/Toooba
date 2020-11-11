@@ -418,8 +418,12 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
         boundsCheck = Invalid;
     end
 
+    Maybe#(Trap) trap = Invalid;
+    if (capException matches tagged Valid .ce) trap = Valid(CapException(ce));
+
     cf.nextPc = setKind(cf.nextPc, UNSEALED);
     cf.mispredict = getAddr(cf.nextPc) != getPc(pps);
+    if (!isValid(trap) && cf.nextPc != setAddrUnsafe(pcc, getPc(pps))) trap = Valid(PccMiss);
 
     data = (case (dInst.iType)
             St          : rVal2;
@@ -445,7 +449,7 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
             default             : cf.nextPc; //TODO should this be nullified?
         endcase);
 
-    return ExecResult{data: data, csrData: csr_data, addr: addr, controlFlow: cf, capException: capException, boundsCheck: boundsCheck};
+    return ExecResult{data: data, csrData: csr_data, addr: addr, controlFlow: cf, trap: trap, boundsCheck: boundsCheck};
 endfunction
 
 (* noinline *)
@@ -558,21 +562,7 @@ function Maybe#(Trap) checkForException(
         end
     end
 
-    // Check that the end of the instruction is in bounds of PCC.
-    CapPipe pcc_end = cast(addAddrUnsafe(pcc, (fourByteInst?4:2)));
-    CapPipe pcc_start = cast(pcc);
-    Maybe#(CSR_XCapCause) capException = Invalid;
-    if (!isValidCap(pcc_start)) capException = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcTagViolation});
-    if (getKind(pcc_start) != UNSEALED) capException = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcSealViolation});
-    if (!getHardPerms(pcc_start).permitExecute) capException = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcPermitXViolation});
-    if (!isInBounds(pcc_end, True)) capException = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation});
-    if (!isInBounds(pcc_start, True)) capException = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation});
-
-    Maybe#(Trap) retval = Invalid;
-    if (capException matches tagged Valid .ce) retval = Valid(CapException(ce));
-    else retval = exception;
-
-    return retval;
+    return exception;
 endfunction
 
 // check mem access misaligned: byteEn is unshifted (just from Decode)

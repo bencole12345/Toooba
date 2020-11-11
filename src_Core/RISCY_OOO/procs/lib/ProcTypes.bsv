@@ -473,6 +473,7 @@ typedef union tagged {
     CapException CapException;
     Exception Exception;
     Interrupt Interrupt;
+    void PccMiss; // Not a real trap, but will flush to the next instruction.
 } Trap deriving(Bits, Eq, FShow);
 
 // privilege modes
@@ -676,7 +677,7 @@ typedef struct {
     CapMem      csrData;
     CapPipe     addr;
     ControlFlow controlFlow;
-    Maybe#(CapException) capException;
+    Maybe#(Trap) trap;
     Maybe#(BoundsCheck) boundsCheck;
 } ExecResult deriving(Bits, FShow);
 
@@ -858,7 +859,7 @@ function Bool isSystem(IType iType) = (
     iType == SFence || iType == FenceI ||
     iType == Sret || iType == Mret
 `ifndef AGGRESSIVE_CSR_SCHEDULING
-    || iType == Csr
+    || iType == Csr || iType == Scr
 `endif
 );
 

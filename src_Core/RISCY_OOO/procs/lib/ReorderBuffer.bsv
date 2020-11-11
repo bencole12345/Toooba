@@ -130,7 +130,7 @@ interface Row_setExecuted_doFinishAlu;
         CapPipe dst_data,
 `endif
         PPCVAddrCSRData csrData,
-        Maybe#(CSR_XCapCause) cause
+        Maybe#(Trap) cause
 `ifdef RVFI
         , ExtraTraceBundle tb
 `endif
@@ -300,7 +300,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
                 CapPipe dst_data,
 `endif
                 PPCVAddrCSRData csrDataOrPPC,
-                Maybe#(CSR_XCapCause) cause
+                Maybe#(Trap) cause
 `ifdef RVFI
                 , ExtraTraceBundle tb
 `endif
@@ -314,8 +314,7 @@ module mkReorderBufferRowEhr(ReorderBufferRowEhr#(aluExeNum, fpuMulDivExeNum)) p
 
                 // update PPC or csrData (vaddr is always useless for ALU results)
                 ppc_vaddr_csrData[pvc_finishAlu_port(i)] <= csrDataOrPPC;
-                if (cause matches tagged Valid .exp)
-                    trap[trap_finishAlu_port(i)] <= Valid (CapException (exp));
+                if (isValid(cause)) trap[trap_finishAlu_port(i)] <= cause;
 `ifdef RVFI
                 //$display("%t : traceBundle = ", $time(), fshow(tb), " in Row_setExecuted_doFinishAlu for %x", ps);
                 traceBundle[traceBundle_finishAlu_port(i)] <= tb;
@@ -580,7 +579,7 @@ interface ROB_setExecuted_doFinishAlu;
                       Data dst_data,
 `endif
                       PPCVAddrCSRData csrData,
-                      Maybe#(CSR_XCapCause) cause
+                      Maybe#(Trap) cause
 `ifdef RVFI
                       , ExtraTraceBundle tb
 `endif
@@ -1136,7 +1135,7 @@ module mkSupReorderBuffer#(
                 Data dst_data,
 `endif
                 PPCVAddrCSRData csrData,
-                Maybe#(CSR_XCapCause) cause
+                Maybe#(Trap) cause
 `ifdef RVFI
                 , ExtraTraceBundle tb
 `endif

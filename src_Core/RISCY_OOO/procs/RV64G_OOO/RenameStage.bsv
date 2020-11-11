@@ -275,9 +275,9 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
         end else
 `endif
 
-        if (isValid(x.cause)) begin
+        if (x.trap matches tagged Valid .t) begin
             // previously found exception
-            trap = tagged Valid (tagged Exception fromMaybe(?, x.cause));
+            trap = Valid(t);
         end else if (isValid(pending_interrupt)) begin
             // pending interrupt
             trap = tagged Valid (tagged Interrupt fromMaybe(?, pending_interrupt));
@@ -338,7 +338,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
         let inst = x.inst;
         let dInst = x.dInst;
         let arch_regs = x.regs;
-        let cause = x.cause;
+        let trap = x.trap;
         let tval = x.tval;
 
         if(verbose) $display("[doRenaming] trap: ", fshow(x));
@@ -466,7 +466,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
         let inst = x.inst;
         let dInst = x.dInst;
         let arch_regs = x.regs;
-        let cause = x.cause;
+        let trap = x.trap;
         if(verbose) $display("[doRenaming] system inst: ", fshow(x));
 
         // update prev epoch
@@ -642,7 +642,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
         let inst = x.inst;
         let dInst = x.dInst;
         let arch_regs = x.regs;
-        let cause = x.cause;
+        let trap = x.trap;
         if(verbose) $display("[doRenaming] mem inst: ", fshow(x));
 
         Addr fallthrough_pc = ((orig_inst[1:0] == 2'b11) ? addPc(pc, 4) : addPc(pc, 2));
@@ -862,7 +862,7 @@ module mkRenameStage#(RenameInput inIfc)(RenameStage);
                 let inst = x.inst;
                 let dInst = x.dInst;
                 let arch_regs = x.regs;
-                let cause = x.cause;
+                let trap = x.trap;
 
                 PredState fallthrough_pc = addPc(ps, ((orig_inst[1:0] == 2'b11) ? 4 : 2));
 

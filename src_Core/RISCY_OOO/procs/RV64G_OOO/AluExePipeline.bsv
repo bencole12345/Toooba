@@ -103,7 +103,7 @@ typedef struct {
     CapPipe data; // alu compute result
     PPCVAddrCSRData csrData; // data to write CSR file, or predicted next PC if not. (For reorder buffer)
     ControlFlow controlFlow;
-    Maybe#(CSR_XCapCause) capException;
+    Maybe#(Trap) trap;
     Maybe#(BoundsCheck) check;
     // speculation
     Maybe#(SpecTag) spec_tag;
@@ -173,7 +173,7 @@ interface AluExeInput;
         CapPipe dst_data,
 `endif
         PPCVAddrCSRData csrData,
-        Maybe#(CSR_XCapCause) capCause
+        Maybe#(Trap) capCause
 `ifdef RVFI
         , ExtraTraceBundle tb
 `endif
@@ -348,7 +348,7 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
                 isCompressed: x.orig_inst[1:0] != 2'b11,
                 data: exec_result.data,
                 csrData: is_scr_or_csr ? CSRData (exec_result.csrData) : PPC (cast(exec_result.controlFlow.nextPc)),
-                capException: exec_result.capException,
+                trap: exec_result.trap,
                 check: exec_result.boundsCheck,
 `ifdef RVFI
                 traceBundle: ExtraTraceBundle{
@@ -375,11 +375,11 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
             inIfc.writeRegFile(dst.indx, x.data);
         end
 
-        if (x.check matches tagged Valid .check &&& x.capException matches tagged Invalid) begin
+        if (x.check matches tagged Valid .check &&& (x.trap == Invalid || x.trap == Valid(PccMiss))) begin
             if (!(                         (check.check_low  >= check.authority_base) &&
                   (check.check_inclusive ? (check.check_high <= check.authority_top )
                                          : (check.check_high <  check.authority_top ))))
-                x.capException = Valid(CSR_XCapCause{cheri_exc_reg: check.authority_idx, cheri_exc_code: cheriExcLengthViolation});
+                x.trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: check.authority_idx, cheri_exc_code: cheriExcLengthViolation}));
         end
 
         // update the instruction in the reorder buffer.
@@ -389,7 +389,7 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
             x.data,
 `endif
             x.csrData,
-            x.capException
+            x.trap
 `ifdef RVFI
             , x.traceBundle
 `endif
@@ -397,54 +397,56 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
 
         // handle spec tags for branch predictions
         // TODO what happens here if we trap?
-        (* split *)
-        if (x.controlFlow.mispredict) (* nosplit *) begin
-            // wrong branch predictin, we must have spec tag
-            doAssert(isValid(x.spec_tag), "mispredicted branch must have spec tag");
-            // For SinglePCC, Execute must not change the bounds/perms of PCC, as branches are executed out-of-order.
-            // If the bounds are wrong, we will flush from Commit.
-            CapMem curPccPredAddr = setAddrUnsafe(inIfc.pcc, getAddr(x.controlFlow.nextPc));
-            inIfc.redirect(cast(curPccPredAddr), validValue(x.spec_tag), x.tag);
-            // must be a branch, train branch predictor
-            doAssert(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br, "only jr, br, cjalr, and ccall can mispredict");
-            inIfc.fetch_train_predictors(FetchTrainBP {
-                ps: PredState{pc: getAddr(x.controlFlow.pc)},
-                nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
-                iType: x.iType,
-                taken: x.controlFlow.taken,
-                dpTrain: x.dpTrain,
-                mispred: True,
-                isCompressed: x.isCompressed
-            });
-`ifdef PERF_COUNT
-            // performance counter
-            if(inIfc.doStats) begin
-                case(x.iType)
-                    Br: exeRedirectBrCnt.incr(1);
-                    Jr: exeRedirectJrCnt.incr(1);
-                    default: exeRedirectOtherCnt.incr(1);
-                endcase
-            end
-`endif
-        end
-        else (* nosplit *) begin
-            // release spec tag
-            if (x.spec_tag matches tagged Valid .valid_spec_tag) begin
-                inIfc.correctSpec(valid_spec_tag);
-            end
-            // train branch predictor if needed
-            // since we can only do 1 training in a cycle, split the rule
-            // XXX not training JAL, reduce chance of conflicts
-            if(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br) begin
+        if (!isValid(x.trap)) begin
+            (* split *)
+            if (x.controlFlow.mispredict) (* nosplit *) begin
+                // wrong branch predictin, we must have spec tag
+                doAssert(isValid(x.spec_tag), "mispredicted branch must have spec tag");
+                // For SinglePCC, Execute must not change the bounds/perms of PCC, as branches are executed out-of-order.
+                // If the bounds are wrong, we will flush from Commit.
+                CapMem curPccPredAddr = setAddrUnsafe(inIfc.pcc, getAddr(x.controlFlow.nextPc));
+                inIfc.redirect(cast(curPccPredAddr), validValue(x.spec_tag), x.tag);
+                // must be a branch, train branch predictor
+                doAssert(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br, "only jr, br, cjalr, and ccall can mispredict");
                 inIfc.fetch_train_predictors(FetchTrainBP {
                     ps: PredState{pc: getAddr(x.controlFlow.pc)},
                     nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
                     iType: x.iType,
                     taken: x.controlFlow.taken,
                     dpTrain: x.dpTrain,
-                    mispred: False,
+                    mispred: True,
                     isCompressed: x.isCompressed
                 });
+`ifdef PERF_COUNT
+                // performance counter
+                if(inIfc.doStats) begin
+                    case(x.iType)
+                        Br: exeRedirectBrCnt.incr(1);
+                        Jr: exeRedirectJrCnt.incr(1);
+                        default: exeRedirectOtherCnt.incr(1);
+                    endcase
+                end
+`endif
+            end
+            else (* nosplit *) begin
+                // release spec tag
+                if (x.spec_tag matches tagged Valid .valid_spec_tag) begin
+                    inIfc.correctSpec(valid_spec_tag);
+                end
+                // train branch predictor if needed
+                // since we can only do 1 training in a cycle, split the rule
+                // XXX not training JAL, reduce chance of conflicts
+                if(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br) begin
+                    inIfc.fetch_train_predictors(FetchTrainBP {
+                        ps: PredState{pc: getAddr(x.controlFlow.pc)},
+                        nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
+                        iType: x.iType,
+                        taken: x.controlFlow.taken,
+                        dpTrain: x.dpTrain,
+                        mispred: False,
+                        isCompressed: x.isCompressed
+                    });
+                end
             end
         end
     endrule

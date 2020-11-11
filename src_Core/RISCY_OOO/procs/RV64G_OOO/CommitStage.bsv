@@ -172,6 +172,7 @@ endinterface
 // use struct to record actions to be done
 typedef struct {
     CapMem pcc;
+    CapMem next_pcc;
     Addr addr;
     Trap trap;
     Bit #(32) orig_inst;
@@ -199,7 +200,9 @@ function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot,
     ByteEn rmask = replicate(False);
     ByteEn wmask = replicate(False);
     Bit#(5) rd = 0;
-    if (!isValid(rot.trap)) begin
+    Maybe#(Trap) trap = rot.trap;
+    if (trap == Valid(PccMiss)) trap = Invalid; //PccMiss is not really a trap.
+    if (!isValid(trap)) begin
         if (rot.dst matches tagged Valid .regWrite) begin
             if (regWrite matches tagged Gpr .regNum) begin
                 data = rot.traceBundle.regWriteData;
@@ -227,7 +230,7 @@ function Maybe#(RVFI_DII_Execution#(DataSz,DataSz)) genRVFI(ToReorderBuffer rot,
     CapPipe pipePc = cast(setAddrUnsafe(pcc, rot.ps.pc));
     return tagged Valid RVFI_DII_Execution {
         rvfi_order: zeroExtend(pack(traceCnt)),
-        rvfi_trap: isValid(rot.trap),
+        rvfi_trap: isValid(trap),
         rvfi_halt: False,
         rvfi_intr: ?,
         rvfi_insn: rot.orig_inst,
@@ -646,14 +649,24 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         let x = rob.deqPort[0].deq_data;
         if(verbose) $display("[doCommitTrap] ", fshow(x));
 
+        // Deal with "normal instruction" updates if this is just a PccMiss (not a real trap, just a full-flush mispredict)
+        if (trap == tagged PccMiss) begin
+            regRenamingTable.commit[0].commit;
+            doAssert(x.claimed_phy_reg, "should have renamed");
+            // incr inst cnt
+            csrf.incInstret(1);
+        end
+
         // record trap info
         Addr vaddr = 0;
-        if(x.ppc_vaddr_csrData matches tagged VAddr .va) begin
-            vaddr = va;
-        end
+        CapMem next_pcc = ?;
+        if(x.ppc_vaddr_csrData matches tagged VAddr .va) vaddr = va;
+        else if (x.ppc_vaddr_csrData matches tagged PPC .pcc) next_pcc = pcc;
+
         let commitTrap_val = Valid (CommitTrap {
             trap: trap,
             pcc: setAddrUnsafe(inIfc.pcc, getPc(x.ps)),
+            next_pcc: next_pcc,
             addr: vaddr,
             orig_inst: x.orig_inst
 `ifdef RVFI_DII
@@ -763,21 +776,26 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
           end
 `endif
 
-       if (! debugger_halt) begin
+       Maybe#(CapPipe) next_pcc = Invalid;
+       if (trap.trap == tagged PccMiss) next_pcc = Valid(cast(trap.next_pcc));
+       else if (! debugger_halt) begin
           // trap handling & redirect
           let trap_updates <- csrf.trap(trap.trap, cast(trap.pcc), trap.addr, trap.orig_inst);
-          PredState new_ps = PredState{pc: getAddr(trap_updates.new_pcc)};
-          inIfc.redirectPcc(trap_updates.new_pcc
+          next_pcc = Valid(cast(trap_updates.new_pcc));
+
+          // system consistency
+          // TODO spike flushes TLB here, but perhaps it is because spike's TLB
+          // does not include prv info, and it has to flush when prv changes.
+          // XXX As approximation, Trap may cause context switch, so flush for
+          // security
+          makeSystemConsistent(False, True, False);
+       end
+       if (next_pcc matches tagged Valid .pcc) begin
+          inIfc.redirectPcc(pcc
 `ifdef RVFI_DII
                            , trap.x.dii_pid + (is_16b_inst(trap.orig_inst) ? 1 : 2)
 `endif
           );
-`ifdef RVFI
-          Rvfi_Traces rvfis = replicate(tagged Invalid);
-          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getPc(new_ps), inIfc.pcc);
-          rvfiQ.enq(rvfis);
-          traceCnt <= traceCnt + 1;
-`endif
 
 `ifdef INCLUDE_TANDEM_VERIF
           fa_to_TV (way0, rg_serial_num,
@@ -792,13 +810,12 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
               rg_last_inst <= trap.orig_inst;
           end
 `endif
-
-          // system consistency
-          // TODO spike flushes TLB here, but perhaps it is because spike's TLB
-          // does not include prv info, and it has to flush when prv changes.
-          // XXX As approximation, Trap may cause context switch, so flush for
-          // security
-          makeSystemConsistent(False, True, False);
+`ifdef RVFI
+          Rvfi_Traces rvfis = replicate(tagged Invalid);
+          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getAddr(pcc), inIfc.pcc);
+          rvfiQ.enq(rvfis);
+          traceCnt <= traceCnt + 1;
+`endif
        end
     endrule
 
@@ -858,7 +875,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         !isValid(rob.deqPort[0].deq_data.trap) &&
         !isValid(rob.deqPort[0].deq_data.ldKilled) &&
         rob.deqPort[0].deq_data.rob_inst_state == Executed &&
-        (isSystem(rob.deqPort[0].deq_data.iType) || pcc_mispredict) &&
+        isSystem(rob.deqPort[0].deq_data.iType) &&
         (! send_mip_csr_change_to_tv)
     );
         rob.deqPort[0].deq;
@@ -1108,14 +1125,8 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
                 let x = rob.deqPort[i].deq_data;
                 let inst_tag = rob.deqPort[i].getDeqInstTag;
 
-                Bool next_pcc_mispredict = False;
-                if (x.ppc_vaddr_csrData matches tagged PPC .ppc) begin
-                  CapPipe predicted_next_pcc = setAddr(cast(inIfc.pcc), getAddr(ppc)).value;
-                  next_pcc_mispredict = (ppc != cast(predicted_next_pcc));
-                end
-
                 // check can be committed or not
-                if(x.rob_inst_state != Executed || isValid(x.ldKilled) || isValid(x.trap) || isSystem(x.iType) || next_pcc_mispredict || (isCsr(x.iType) && i != 0)) begin
+                if(x.rob_inst_state != Executed || isValid(x.ldKilled) || isValid(x.trap) || isSystem(x.iType) || (isCsr(x.iType) && i != 0)) begin
                     // inst not ready for commit, or system inst, or trap, or killed, stop here
                     stop = True;
                 end
