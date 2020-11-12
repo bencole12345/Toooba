@@ -897,10 +897,11 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         Bool write_satp     = False; // flush tlb when satp csr is modified
         Bool flush_security = False; // flush for security when the flush csr is written
         if(x.iType == Csr) begin
-            // notify commit of CSR (so MMIO pRq may be handled)
-            inIfc.commitCsrInstOrInterrupt;
             // write CSR
-            let csr_idx = validValue(x.csr);
+            Maybe#(CSR) csr_idx = (case(x.orig_inst[14:12])
+                fnCSRRWI: x.csr;
+                default: ((x.orig_inst[19:15]!=0) ? x.csr : Invalid);
+            endcase);
             Data csr_data = ?;
             if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 csr_data = getAddr(d);
@@ -908,8 +909,11 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             else begin
                 doAssert(False, "must have csr data");
             end
-            csrf.csrInstWr(csr_idx, csr_data);
-
+            if (csr_idx matches tagged Valid .idx) begin
+              csrf.csrInstWr(idx, csr_data);
+              // notify commit of CSR (so MMIO pRq may be handled)
+              inIfc.commitCsrInstOrInterrupt;
+            end
 `ifdef INCLUDE_TANDEM_VERIF
             Data data_warl_xformed = csrf.warl_xform (csr_idx, csr_data);
             x.ppc_vaddr_csrData = tagged CSRData data_warl_xformed;
@@ -921,7 +925,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 `endif
 
             // check if satp is modified or not
-            write_satp = csr_idx == csrAddrSATP;
+            write_satp = csr_idx == Valid(csrAddrSATP);
 `ifdef SECURITY
             flush_security = csr_idx == csrAddrMFLUSH;
 `endif
@@ -929,7 +933,10 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         if(x.iType == Scr) begin
             // inIfc.commitCsrInstOrInterrupt; // TODO Will there be statcounter for SCRs?
             // write CSR
-            let scr_idx = validValue(x.scr);
+            Maybe#(SCR) scr_idx = (case(x.orig_inst[14:12]) // Only works because CSpecialRW has inst[14:12]==0, so this only effects CSR writes that have been hijacked into SCR operations.
+                fnCSRRWI: x.scr;
+                default: ((x.orig_inst[19:15]!=0) ? x.scr : Invalid);
+            endcase);
             CapMem scr_data = ?;
             if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 scr_data = d;
@@ -937,7 +944,8 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             else begin
                 doAssert(False, "must have scr data");
             end
-            csrf.scrInstWr(scr_idx, cast(scr_data)); // TODO only needs a CapReg so we could avoid generating the CapPipe in the first place
+            if (scr_idx matches tagged Valid .idx)
+                csrf.scrInstWr(idx, cast(scr_data)); // TODO only needs a CapReg so we could avoid generating the CapPipe in the first place
         end
 
         // redirect (Sret and Mret redirect pc is got from CSRF)
