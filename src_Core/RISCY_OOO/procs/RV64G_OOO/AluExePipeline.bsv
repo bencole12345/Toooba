@@ -397,56 +397,54 @@ module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
 
         // handle spec tags for branch predictions
         // TODO what happens here if we trap?
-        if (!isValid(x.trap)) begin
-            (* split *)
-            if (x.controlFlow.mispredict) (* nosplit *) begin
-                // wrong branch predictin, we must have spec tag
-                doAssert(isValid(x.spec_tag), "mispredicted branch must have spec tag");
-                // For SinglePCC, Execute must not change the bounds/perms of PCC, as branches are executed out-of-order.
-                // If the bounds are wrong, we will flush from Commit.
-                CapMem curPccPredAddr = setAddrUnsafe(inIfc.pcc, getAddr(x.controlFlow.nextPc));
-                inIfc.redirect(cast(curPccPredAddr), validValue(x.spec_tag), x.tag);
-                // must be a branch, train branch predictor
-                doAssert(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br, "only jr, br, cjalr, and ccall can mispredict");
+        (* split *)
+        if (x.controlFlow.mispredict) (* nosplit *) begin
+            // wrong branch predictin, we must have spec tag
+            doAssert(isValid(x.spec_tag), "mispredicted branch must have spec tag");
+            // For SinglePCC, Execute must not change the bounds/perms of PCC, as branches are executed out-of-order.
+            // If the bounds are wrong, we will flush from Commit.
+            CapMem curPccPredAddr = setAddrUnsafe(inIfc.pcc, getAddr(x.controlFlow.nextPc));
+            inIfc.redirect(cast(curPccPredAddr), validValue(x.spec_tag), x.tag);
+            // must be a branch, train branch predictor
+            doAssert(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br, "only jr, br, cjalr, and ccall can mispredict");
+            inIfc.fetch_train_predictors(FetchTrainBP {
+                ps: PredState{pc: getAddr(x.controlFlow.pc)},
+                nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
+                iType: x.iType,
+                taken: x.controlFlow.taken,
+                dpTrain: x.dpTrain,
+                mispred: True,
+                isCompressed: x.isCompressed
+            });
+`ifdef PERF_COUNT
+            // performance counter
+            if(inIfc.doStats) begin
+                case(x.iType)
+                    Br: exeRedirectBrCnt.incr(1);
+                    Jr: exeRedirectJrCnt.incr(1);
+                    default: exeRedirectOtherCnt.incr(1);
+                endcase
+            end
+`endif
+        end
+        else (* nosplit *) begin
+            // release spec tag
+            if (x.spec_tag matches tagged Valid .valid_spec_tag) begin
+                inIfc.correctSpec(valid_spec_tag);
+            end
+            // train branch predictor if needed
+            // since we can only do 1 training in a cycle, split the rule
+            // XXX not training JAL, reduce chance of conflicts
+            if(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br) begin
                 inIfc.fetch_train_predictors(FetchTrainBP {
                     ps: PredState{pc: getAddr(x.controlFlow.pc)},
                     nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
                     iType: x.iType,
                     taken: x.controlFlow.taken,
                     dpTrain: x.dpTrain,
-                    mispred: True,
+                    mispred: False,
                     isCompressed: x.isCompressed
                 });
-`ifdef PERF_COUNT
-                // performance counter
-                if(inIfc.doStats) begin
-                    case(x.iType)
-                        Br: exeRedirectBrCnt.incr(1);
-                        Jr: exeRedirectJrCnt.incr(1);
-                        default: exeRedirectOtherCnt.incr(1);
-                    endcase
-                end
-`endif
-            end
-            else (* nosplit *) begin
-                // release spec tag
-                if (x.spec_tag matches tagged Valid .valid_spec_tag) begin
-                    inIfc.correctSpec(valid_spec_tag);
-                end
-                // train branch predictor if needed
-                // since we can only do 1 training in a cycle, split the rule
-                // XXX not training JAL, reduce chance of conflicts
-                if(x.iType == Jr || x.iType == CJALR || x.iType == CCall || x.iType == Br) begin
-                    inIfc.fetch_train_predictors(FetchTrainBP {
-                        ps: PredState{pc: getAddr(x.controlFlow.pc)},
-                        nextPs: PredState{pc: getAddr(x.controlFlow.nextPc)},
-                        iType: x.iType,
-                        taken: x.controlFlow.taken,
-                        dpTrain: x.dpTrain,
-                        mispred: False,
-                        isCompressed: x.isCompressed
-                    });
-                end
             end
         end
     endrule

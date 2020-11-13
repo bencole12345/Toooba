@@ -377,6 +377,7 @@ function ControlFlow getControlFlow(DecodedInst dInst, Data rVal1, Data rVal2, A
     return cf;
 endfunction
 */
+
 (* noinline *)
 function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, CapPipe pcc, PredState pps, Bit #(32) orig_inst);
     // just data, addr, and control flow
@@ -422,8 +423,12 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
     if (capException matches tagged Valid .ce) trap = Valid(CapException(ce));
 
     cf.nextPc = setKind(cf.nextPc, UNSEALED);
-    cf.mispredict = getAddr(cf.nextPc) != getPc(pps);
-    if (!isValid(trap) && cf.nextPc != setAddrUnsafe(pcc, getPc(pps))) trap = Valid(PccMiss);
+    cf.mispredict = False;
+    function Bool capBoundsCompare(CapPipe a, CapPipe b) =
+        (setAddrUnsafe(a,0) == setAddrUnsafe(b,0)) && (getBase(a) == getBase(b));
+    if (!capBoundsCompare(cf.nextPc, pcc)) begin // Never flush both here and in commit; either/or.
+        if (!isValid(trap)) trap = Valid(PccMiss);
+    end else cf.mispredict = (getAddr(cf.nextPc) != getPc(pps));
 
     data = (case (dInst.iType)
             St          : rVal2;
