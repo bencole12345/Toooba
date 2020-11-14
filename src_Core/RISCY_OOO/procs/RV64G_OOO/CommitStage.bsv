@@ -1,3 +1,4 @@
+
 // Copyright (c) 2017 Massachusetts Institute of Technology
 // Portions Copyright (c) 2019-2020 Bluespec, Inc.
 //
@@ -892,11 +893,10 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         Bool write_satp     = False; // flush tlb when satp csr is modified
         Bool flush_security = False; // flush for security when the flush csr is written
         if(x.iType == Csr) begin
+            // notify commit of CSR (so MMIO pRq may be handled)
+            inIfc.commitCsrInstOrInterrupt;
             // write CSR
-            Maybe#(CSR) csr_idx = (case(x.orig_inst[14:12])
-                fnCSRRWI: x.csr;
-                default: ((x.orig_inst[19:15]!=0) ? x.csr : Invalid);
-            endcase);
+            let csr_idx = validValue(x.csr);
             Data csr_data = ?;
             if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 csr_data = getAddr(d);
@@ -904,11 +904,8 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             else begin
                 doAssert(False, "must have csr data");
             end
-            if (csr_idx matches tagged Valid .idx) begin
-              csrf.csrInstWr(idx, csr_data);
-              // notify commit of CSR (so MMIO pRq may be handled)
-              inIfc.commitCsrInstOrInterrupt;
-            end
+            csrf.csrInstWr(csr_idx, csr_data);
+
 `ifdef INCLUDE_TANDEM_VERIF
             Data data_warl_xformed = csrf.warl_xform (csr_idx, csr_data);
             x.ppc_vaddr_csrData = tagged CSRData data_warl_xformed;
@@ -920,7 +917,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 `endif
 
             // check if satp is modified or not
-            write_satp = csr_idx == Valid(csrAddrSATP);
+            write_satp = csr_idx == csrAddrSATP;
 `ifdef SECURITY
             flush_security = csr_idx == csrAddrMFLUSH;
 `endif
@@ -928,23 +925,20 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         if(x.iType == Scr) begin
             // inIfc.commitCsrInstOrInterrupt; // TODO Will there be statcounter for SCRs?
             // write CSR
-            Maybe#(SCR) scr_idx = (case(x.orig_inst[14:12]) // Only works because CSpecialRW has inst[14:12]==0, so this only effects CSR writes that have been hijacked into SCR operations.
-                fnCSRRWI: x.scr;
-                default: ((x.orig_inst[19:15]!=0) ? x.scr : Invalid);
-            endcase);
+            let scr_idx = validValue(x.scr);
             CapMem scr_data = ?;
-            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
+            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
                 scr_data = d;
             end
             else begin
                 doAssert(False, "must have scr data");
             end
-            if (scr_idx matches tagged Valid .idx)
-                csrf.scrInstWr(idx, cast(scr_data)); // TODO only needs a CapReg so we could avoid generating the CapPipe in the first place
+            csrf.scrInstWr(scr_idx, cast(scr_data)); // TODO only needs a CapReg so we could avoid generating the CapPipe in the first place
         end
 
         // redirect (Sret and Mret redirect pc is got from CSRF)
-        CapMem next_pc = x.ppc_vaddr_csrData matches tagged PPC .ppc ? ppc : setAddrUnsafe(inIfc.pcc, getPc(addPc(x.ps, 4)));
+        CapMem next_pc = x.pps_vaddr_csrData matches tagged PPS .pps ? pps.pc : addPc(x.ps, 4).pc;
+        doAssert(getAddr(next_pc) == getPc(x.ps) + 4, "ppc must be pc + 4");
 `ifdef INCLUDE_TANDEM_VERIF
         Maybe #(RET_Updates) m_ret_updates = no_ret_updates;
 `endif
@@ -962,7 +956,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
            m_ret_updates = tagged Valid ret_updates;
 `endif
         end
-        inIfc.redirectPcc(cast(next_pc)
+        inIfc.redirectPs(PredState{pc: next_pc}
 `ifdef RVFI_DII
             , x.dii_pid + (is_16b_inst(x.orig_inst) ? 1 : 2)
 `endif
@@ -970,7 +964,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
 `ifdef RVFI
         Rvfi_Traces rvfis = replicate(tagged Invalid);
-        x.ppc_vaddr_csrData = tagged PPC next_pc;
+        x.pps_vaddr_csrData = tagged PPS PredState{pc: next_pc};
         CapPipe cp = cast(next_pc);
         rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp), inIfc.pcc);
         rvfiQ.enq(rvfis);
@@ -1274,7 +1268,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         rg_last_pcc  <= last_pcc;
         rg_last_inst <= last_inst;
 `endif
-        //pcc_reg <= next_pcc;
 
         if (csr_idx matches tagged Valid .idx) begin
             // notify commit of CSR (so MMIO pRq may be handled)
