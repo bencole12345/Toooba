@@ -966,7 +966,7 @@ module mkFetchStage(FetchStage);
                          trap = Valid(Exception(excIllegalInst));
                      if (zeroExtend(getPc(addPc(in.ps, ((inst_data[i].inst_kind == Inst_32b) ? 4 : 2))))  > pcc_reg_top)
                          trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
-                     if (zeroExtend(getPc(in.ps)) < pcc_reg_base) // I think this condition is unnecessary due to checking in Fetch2
+                     if (zeroExtend(getPc(in.ps)) < pcc_reg_base)
                          trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
                      if (!isValidCap(pcc_reg[0]))
                          trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcTagViolation}));
@@ -974,10 +974,6 @@ module mkFetchStage(FetchStage);
                          trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcSealViolation}));
                      if (!getHardPerms(pcc_reg[0]).permitExecute)
                          trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcPermitXViolation}));
-                     if (zeroExtend(getPc(in.ps)) >= pcc_reg_top)
-                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
-                     if (zeroExtend(getPc(in.ps)) < pcc_reg_base)
-                         trap = Valid(CapException(CSR_XCapCause{cheri_exc_reg: {1'b1,pack(scrAddrPCC)}, cheri_exc_code: cheriExcLengthViolation}));
                   end
 
                   let dInst = decode_result.dInst;

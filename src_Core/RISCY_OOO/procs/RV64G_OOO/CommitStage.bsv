@@ -1,4 +1,3 @@
-
 // Copyright (c) 2017 Massachusetts Institute of Technology
 // Portions Copyright (c) 2019-2020 Bluespec, Inc.
 //
@@ -777,45 +776,47 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 `endif
 
        Maybe#(CapPipe) next_pcc = Invalid;
-       if (trap.trap == tagged PccMiss) next_pcc = Valid(cast(trap.next_pcc));
-       else if (! debugger_halt) begin
-          // trap handling & redirect
-          let trap_updates <- csrf.trap(trap.trap, cast(trap.pcc), trap.addr, trap.orig_inst);
-          next_pcc = Valid(cast(trap_updates.new_pcc));
+       if (! debugger_halt) begin
+           if (trap.trap == tagged PccMiss) next_pcc = Valid(cast(trap.next_pcc));
+           else begin
+              // trap handling & redirect
+              let trap_updates <- csrf.trap(trap.trap, cast(trap.pcc), trap.addr, trap.orig_inst);
+              next_pcc = Valid(cast(trap_updates.new_pcc));
 
-          // system consistency
-          // TODO spike flushes TLB here, but perhaps it is because spike's TLB
-          // does not include prv info, and it has to flush when prv changes.
-          // XXX As approximation, Trap may cause context switch, so flush for
-          // security
-          makeSystemConsistent(False, True, False);
-       end
-       if (next_pcc matches tagged Valid .pcc) begin
-          inIfc.redirectPcc(pcc
+              // system consistency
+              // TODO spike flushes TLB here, but perhaps it is because spike's TLB
+              // does not include prv info, and it has to flush when prv changes.
+              // XXX As approximation, Trap may cause context switch, so flush for
+              // security
+              makeSystemConsistent(False, True, False);
+           end
+           if (next_pcc matches tagged Valid .pcc) begin
+              inIfc.redirectPcc(pcc
 `ifdef RVFI_DII
-                           , trap.x.dii_pid + (is_16b_inst(trap.orig_inst) ? 1 : 2)
+                              , trap.x.dii_pid + (is_16b_inst(trap.orig_inst) ? 1 : 2)
 `endif
-          );
+              );
 
-`ifdef INCLUDE_TANDEM_VERIF
-          fa_to_TV (way0, rg_serial_num,
-                    tagged Invalid,
-                    x, no_fflags, no_mstatus, tagged Valid trap_updates, no_ret_updates);
-`endif
-          rg_serial_num <= rg_serial_num + 1;
-`ifdef DEBUG_WEDGE
-          Bool is_exception = trap.trap matches tagged Interrupt .i ? False : True;
-          if (is_exception) begin
-              rg_last_pcc  <= trap.pc;
-              rg_last_inst <= trap.orig_inst;
-          end
-`endif
-`ifdef RVFI
-          Rvfi_Traces rvfis = replicate(tagged Invalid);
-          rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getAddr(pcc), inIfc.pcc);
-          rvfiQ.enq(rvfis);
-          traceCnt <= traceCnt + 1;
-`endif
+  `ifdef INCLUDE_TANDEM_VERIF
+              fa_to_TV (way0, rg_serial_num,
+                        tagged Invalid,
+                        x, no_fflags, no_mstatus, tagged Valid trap_updates, no_ret_updates);
+  `endif
+              rg_serial_num <= rg_serial_num + 1;
+  `ifdef DEBUG_WEDGE
+              Bool is_exception = trap.trap matches tagged Interrupt .i ? False : True;
+              if (is_exception) begin
+                  rg_last_pcc  <= trap.pc;
+                  rg_last_inst <= trap.orig_inst;
+              end
+  `endif
+  `ifdef RVFI
+              Rvfi_Traces rvfis = replicate(tagged Invalid);
+              rvfis[0] = genRVFI(trap.x, traceCnt, getTSB(), getAddr(pcc), inIfc.pcc);
+              rvfiQ.enq(rvfis);
+              traceCnt <= traceCnt + 1;
+  `endif
+           end
        end
     endrule
 
@@ -859,12 +860,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         doAssert(x.rob_inst_state == Executed, "must be executed");
         doAssert(x.spec_bits == 0, "cannot have spec bits");
     endrule
-
-    Bool pcc_mispredict = False;
-    if (rob.deqPort[0].deq_data.ppc_vaddr_csrData matches tagged PPC .ppc) begin
-      CapPipe predicted_next_pcc = setAddr(cast(inIfc.pcc), getAddr(ppc)).value;
-      pcc_mispredict = (ppc != cast(predicted_next_pcc));
-    end
 
     // commit system inst
     rule doCommitSystemInst(
@@ -1076,7 +1071,6 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         !isValid(rob.deqPort[0].deq_data.ldKilled) &&
         rob.deqPort[0].deq_data.rob_inst_state == Executed &&
         !isSystem(rob.deqPort[0].deq_data.iType) &&
-        !pcc_mispredict &&
         (! send_mip_csr_change_to_tv)
     );
         // stop superscalar commit after we
