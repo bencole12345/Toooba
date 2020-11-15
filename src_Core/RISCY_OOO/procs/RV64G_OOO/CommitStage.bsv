@@ -927,7 +927,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
             // write CSR
             let scr_idx = validValue(x.scr);
             CapMem scr_data = ?;
-            if(x.pps_vaddr_csrData matches tagged CSRData .d) begin
+            if(x.ppc_vaddr_csrData matches tagged CSRData .d) begin
                 scr_data = d;
             end
             else begin
@@ -937,8 +937,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         end
 
         // redirect (Sret and Mret redirect pc is got from CSRF)
-        CapMem next_pc = x.pps_vaddr_csrData matches tagged PPS .pps ? pps.pc : addPc(x.ps, 4).pc;
-        doAssert(getAddr(next_pc) == getPc(x.ps) + 4, "ppc must be pc + 4");
+        CapMem next_pc = x.ppc_vaddr_csrData matches tagged PPC .ppc ? ppc : setAddrUnsafe(inIfc.pcc, getPc(addPc(x.ps,4)));
 `ifdef INCLUDE_TANDEM_VERIF
         Maybe #(RET_Updates) m_ret_updates = no_ret_updates;
 `endif
@@ -956,7 +955,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
            m_ret_updates = tagged Valid ret_updates;
 `endif
         end
-        inIfc.redirectPs(PredState{pc: next_pc}
+        inIfc.redirectPcc(cast(next_pc)
 `ifdef RVFI_DII
             , x.dii_pid + (is_16b_inst(x.orig_inst) ? 1 : 2)
 `endif
