@@ -1110,7 +1110,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
                     if (verbosity >= 1) begin
                        $display("instret:%0d  PC:0x%0h  instr:0x%08h", rg_serial_num + instret, x.pc, x.orig_inst,
-                                "   iType:", fshow (x.iType), "    [doCommitNormalInst [%0d]]", i);
+                                "   iType:", fshow (x.iType), " hartid:0x%0h", csrf.rd(csrAddrMHARTID), "    [doCommitNormalInst [%0d]]", i);
                     end
 
 `ifdef INCLUDE_TANDEM_VERIF
