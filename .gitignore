@@ -18,3 +18,4 @@ vpi_wrapper_*
 builds/RV*/build_dir
 builds/RV*/Verilog_RTL
 .depends.mk
+source.sh
