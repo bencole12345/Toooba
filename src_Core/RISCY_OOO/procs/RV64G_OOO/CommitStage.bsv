@@ -963,7 +963,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
 `ifdef RVFI
         Rvfi_Traces rvfis = replicate(tagged Invalid);
-        x.pps_vaddr_csrData = tagged PPS PredState{pc: next_pc};
+        x.ppc_vaddr_csrData = tagged PPC next_pc;
         CapPipe cp = cast(next_pc);
         rvfis[0] = genRVFI(x, traceCnt, getTSB(), getOffset(cp), inIfc.pcc);
         rvfiQ.enq(rvfis);
