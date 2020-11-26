@@ -15,6 +15,9 @@ SECTIONS
         *(.text) /* add the instructions compiled from enclave.c */
     }
 
+    . = ALIGN(0x1000);
+    .tohost : { *(.tohost) }
+
     /* data segment */
     .data : { *(.data) }
 }

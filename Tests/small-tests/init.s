@@ -12,4 +12,11 @@ entry:
     call  main              #Call the main function
 
 end:
-    j end                   #Loop when finished
+    addi  t0, zero, 1
+    sw    t0, tohost, t1    #Store 1 to tohost address
+    j     end               #Loop when finished
+
+.section .tohost
+.global tohost; tohost: .dword 0;
+.global fromhost; fromhost: .dword 0; 
+
