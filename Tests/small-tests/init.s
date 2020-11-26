@@ -14,6 +14,9 @@ entry:
     csrr  a0, mhartid       #Put harware thread ID in first function argument
     call  main              #Call the main function
 
+    csrr  t1, mhartid
+infiniloop:
+    bnez  t1, infiniloop    #If not core 0 then loop infinitly
 end:
     addi  t0, zero, 1
     sw    t0, tohost, t1    #Store 1 to tohost address
