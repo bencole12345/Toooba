@@ -18,8 +18,8 @@ long main(char * output) {
     long tmp;
     for( int i = 0; i < 10; i++) {
         c = 0x11;
-        uart_pointer[0] = c;
-        c = uart_pointer[0];
+        uart_pointer[i] = c;
+        c = uart_pointer[i];
     }
     for( int i = 0; i < SIZE_OF_ROM/sizeof(int)/128; i++) {
         tmp = rom_pointer[i];
