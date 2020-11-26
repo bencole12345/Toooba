@@ -1,4 +1,4 @@
-#!/bin/sh -x
+#!/bin/sh -xe
 riscv64-unknown-elf-gcc -o toy.o -c toy.c
 riscv64-unknown-elf-gcc -o init.o -c init.s
 riscv64-unknown-elf-gcc -nostdlib -mcmodel=medany -Tlink.ld -o toy toy.o init.o
