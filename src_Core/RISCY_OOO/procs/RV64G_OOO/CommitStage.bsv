@@ -666,7 +666,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
 
         if (verbosity >= 1) begin
            $display ("instret:%0d  PC:0x%0h  instr:0x%08h", rg_serial_num, x.pc, x.orig_inst,
-                     "  iType:", fshow (x.iType), "    [doCommitTrap]");
+                     "  iType:", fshow (x.iType), " hartid:0x%0h", csrf.rd(csrAddrMHARTID), "    [doCommitTrap]");
         end
         if (verbose) begin
            $display ("CommitStage.doCommitTrap_flush: deq_data:   ", fshow (x));
@@ -860,7 +860,7 @@ module mkCommitStage#(CommitInput inIfc)(CommitStage);
         if(verbose) $display("[doCommitSystemInst] ", fshow(x));
         if (verbosity >= 1) begin
            $display("instret:%0d  PC:0x%0h  instr:0x%08h", rg_serial_num, x.pc, x.orig_inst,
-                    "   iType:", fshow (x.iType), "    [doCommitSystemInst]");
+                    "   iType:", fshow (x.iType), " hartid:0x%0h", csrf.rd(csrAddrMHARTID), "    [doCommitSystemInst]");
         end
 
         // we claim a phy reg for every inst, so commit its renaming
