@@ -1,2 +1,3 @@
-cp ../../Tests/small-tests/toy.hex Mem.hex
-./exe_HW_sim
+cp ../../Tests/small-tests/hello.hex Mem.hex
+cp ../../Tests/small-tests/symbol_table.txt .
+./exe_HW_sim +tohost
