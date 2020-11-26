@@ -18,6 +18,11 @@ SECTIONS
     . = ALIGN(0x1000);
     .tohost : { *(.tohost) }
 
+    . = ALIGN(0x1000);
     /* data segment */
     .data : { *(.data) }
+    .sdata : { *(.sdata) }
+    .sbss : { *(.sbss) }
+    .bss : { *(.bss) }
+    _end = .;
 }
