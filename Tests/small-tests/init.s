@@ -9,6 +9,9 @@ entry:
     auipc sp, 0x8           #sp is pc plus 0x8000 which is the stack location
     srli  sp, sp, 12        #making sure last 12 bits of sp are 0
     slli  sp, sp, 12
+    #la    t0, __mem
+    #csrw  mtvec, t0        #Set trap vector to go back to start of program
+    csrr  a0, mhartid       #Put harware thread ID in first function argument
     call  main              #Call the main function
 
 end:
