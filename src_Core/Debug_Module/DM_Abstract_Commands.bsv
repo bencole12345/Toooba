@@ -585,8 +585,10 @@ module mkDM_Abstract_Commands (DM_Abstract_Commands_IFC);
 	    rg_dmcontrol_hartsel <= fn_dmcontrol_hartsel(dm_word);
 	    // It is specified that the debugger must not change hartsel while this module is busy.
 	    // If this is done, the debug unit will wedge, so print a warning.
-	    $display ("%0d: DM_Abstract_Commands.write: [", cur_cycle, dm_addr_name,
-		      "] <= 0x%08h: ERROR: must not change hartsel while busy", dm_word);
+	    if (rg_abstractcs_busy) begin
+	       $display ("%0d: DM_Abstract_Commands.write: [", cur_cycle, dm_addr_name,
+			 "] <= 0x%08h: ERROR: must not change hartsel while busy", dm_word);
+	    end
 	 end
 
 	 else if (dm_addr == dm_addr_abstractcs)
