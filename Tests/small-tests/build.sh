@@ -1,7 +1,7 @@
 #!/bin/sh -xe
 
 riscv64-unknown-elf-gcc -o init.o -c init.s
-for TEST in toy hello
+for TEST in toy dual
 do
 riscv64-unknown-elf-gcc -o $TEST.o -c $TEST.c
 riscv64-unknown-elf-gcc -nostdlib -mcmodel=medany -Tlink.ld -o $TEST $TEST.o init.o
