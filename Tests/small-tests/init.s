@@ -19,8 +19,12 @@ entry:
 infiniloop:
     bnez  t1, infiniloop    #If not core 0 then loop infinitly
 end:
-    addi  t0, zero, 1
-    sw    t0, tohost, t1    #Store 1 to tohost address
+    li    t1, 0x1
+    beqz  a0, end2
+    li    t1, 0x2
+end2:
+    la    t0, tohost
+    sw    t1, 0(t0)    #Store main's return val to tohost address
     j     end               #Loop when finished
 
 .section .tohost
