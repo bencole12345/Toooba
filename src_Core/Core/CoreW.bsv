@@ -61,6 +61,10 @@ import Routable   :: *;
 import AXI4       :: *;
 import TagControllerAXI :: *;
 
+`ifdef PERFORMANCE_MONITORING
+import AXI4_Performance :: *;
+`endif
+
 // ================================================================
 // Project imports
 
@@ -175,7 +179,14 @@ module mkCoreW #(Reset dm_power_on_reset)
    // handle cached interface
    // AXI4 tagController
    TagControllerAXI#(Wd_MId, Wd_Addr, Wd_Data) tagController <- mkTagControllerAXI(reset_by all_harts_reset); // TODO double check if reseting like this is good enough
-   mkConnection(proc.master0, tagController.slave, reset_by all_harts_reset);
+   let proc_initiator0 = proc.master0;
+`ifdef PERFORMANCE_MONITORING
+   let performanceInitiator <- toAXI4PerformanceInitiator(proc_initiator0);
+   let wrappedInitiator = performanceInitiator.initiator;
+`else
+   let wrappedInitiator = proc_initiator0;
+`endif
+   mkConnection(wrappedInitiator, tagController.slave, reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    rule report_tagController_events;
       Vector#(7, Bit#(1)) evts = tagController.events;
