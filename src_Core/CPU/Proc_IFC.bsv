@@ -130,6 +130,7 @@ interface Proc_IFC;
 
 `ifdef PERFORMANCE_MONITORING
     method Action events_tgc(EventsCache events);
+    method Action events_axi(AXI4_Events events);
 `endif
 
 endinterface

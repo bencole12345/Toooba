@@ -62,6 +62,7 @@ import Performance::*;
 `ifdef PERFORMANCE_MONITORING
 import PerformanceMonitor::*;
 import BlueUtils::*;
+import AXI4::*;
 `endif
 import HasSpecBits::*;
 import Exec::*;
@@ -208,6 +209,7 @@ interface Core;
 `ifdef PERFORMANCE_MONITORING
     method Action events_llc(EventsCache events);
     method Action events_tgc(EventsCache events);
+    method Action events_axi(AXI4_Events events);
 `endif
 endinterface
 
@@ -1102,6 +1104,7 @@ module mkCore#(CoreId coreId)(Core);
 
      Reg#(EventsCache) events_llc_reg <- mkRegU;
      Reg#(EventsCache) events_tgc_reg <- mkRegU;
+     Reg#(AXI4_Events) events_axi_reg <- mkRegU;
      rule report_events;
          hpm_core_events[2] <= unpack(pack(commitStage.events));
      endrule
@@ -1117,6 +1120,7 @@ module mkCore#(CoreId coreId)(Core);
      Vector #(32, Bit #(Report_Width)) external_evts_vec = replicate (0);//to_large_vector (w_external_evts);
      Vector #(16, Bit #(Report_Width)) llc_evts_vec = to_large_vector (events_llc_reg);
      Vector #(16, Bit #(Report_Width)) tgc_evts_vec = to_large_vector (events_tgc_reg);
+     Vector #(8,  Bit #(Report_Width)) axi_evts_vec = to_large_vector (events_axi_reg);
 
      let events = append (null_evt, core_evts_vec);
      events = append (events, imem_evts_vec);
@@ -1124,6 +1128,7 @@ module mkCore#(CoreId coreId)(Core);
      events = append (events, external_evts_vec);
      events = append (events, llc_evts_vec);
      events = append (events, tgc_evts_vec);
+     events = append (events, axi_evts_vec);
 
      (* fire_when_enabled, no_implicit_conditions *)
      rule rl_send_perf_evts;

@@ -179,10 +179,12 @@ module mkProc (Proc_IFC);
 
 `ifdef PERFORMANCE_MONITORING
    Reg#(EventsCache) events_tgc_reg <- mkRegU;
+   Reg#(AXI4_Events) events_axi_reg <- mkRegU;
    rule broadcastPerfEvents;
        for(Integer j = 0; j < valueof(CoreNum); j = j+1) begin
            core[j].events_llc(llc.events);
            core[j].events_tgc(events_tgc_reg);
+           core[j].events_axi(events_axi_reg);
        end
    endrule
 `endif
@@ -356,6 +358,7 @@ module mkProc (Proc_IFC);
 
 `ifdef PERFORMANCE_MONITORING
     method events_tgc = events_tgc_reg._write;
+    method events_axi = events_axi_reg._write;
 `endif
 
 endmodule: mkProc

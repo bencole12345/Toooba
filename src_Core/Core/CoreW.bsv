@@ -61,10 +61,6 @@ import Routable   :: *;
 import AXI4       :: *;
 import TagControllerAXI :: *;
 
-`ifdef PERFORMANCE_MONITORING
-import AXI4_Performance :: *;
-`endif
-
 // ================================================================
 // Project imports
 
@@ -106,6 +102,10 @@ import TV_Taps  :: *;
 `endif
 
 import DM_CPU_Req_Rsp ::*;
+
+`ifdef PERFORMANCE_MONITORING
+import MonitorWrapper::*;
+`endif
 
 // ================================================================
 // The Core module
@@ -181,12 +181,12 @@ module mkCoreW #(Reset dm_power_on_reset)
    TagControllerAXI#(Wd_MId, Wd_Addr, Wd_Data) tagController <- mkTagControllerAXI(reset_by all_harts_reset); // TODO double check if reseting like this is good enough
    let proc_initiator0 = proc.master0;
 `ifdef PERFORMANCE_MONITORING
-   let performanceInitiator <- toAXI4PerformanceInitiator(proc_initiator0);
-   let wrappedInitiator = performanceInitiator.initiator;
+   let monitored_initiator <- monitorAXI4_Initiator(proc_initiator0);
+   let unwrappedInitiator = monitored_initiator.ifc;
 `else
-   let wrappedInitiator = proc_initiator0;
+   let unwrappedInitiator = proc_initiator0;
 `endif
-   mkConnection(wrappedInitiator, tagController.slave, reset_by all_harts_reset);
+   mkConnection(unwrappedInitiator, tagController.slave, reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    rule report_tagController_events;
       Vector#(7, Bit#(1)) evts = tagController.events;
@@ -198,6 +198,7 @@ module mkCoreW #(Reset dm_power_on_reset)
       ce.evt_EVICT = zeroExtend(evts[4]);
       // SET_TAG_WRITE/READ aren't used in TagCache; tag table data is not tagged.
       proc.events_tgc(ce);
+      proc.events_axi(monitored_initiator.events);
    endrule
 `endif
 
