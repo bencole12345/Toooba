@@ -244,6 +244,9 @@ instance BitVectorable #(EventsCache, SizeOf#(HpmRpt), EventsCacheElements) prov
    function Vector#(EventsCacheElements, HpmRpt) to_vector(EventsCache e) =
       reverse(unpack(pack(e)));
 endinstance
+instance BitVectorable#(AXI4_Events, 1, n) provisos (Bits#(AXI4_Events, n));
+   function to_vector = struct_to_vector;
+endinstance
 `endif
 
 (* synthesize *)
