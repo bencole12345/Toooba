@@ -104,7 +104,7 @@ import TV_Taps  :: *;
 import DM_CPU_Req_Rsp ::*;
 
 `ifdef PERFORMANCE_MONITORING
-import MonitorWrapper::*;
+import Monitored :: *;
 `endif
 
 // ================================================================
