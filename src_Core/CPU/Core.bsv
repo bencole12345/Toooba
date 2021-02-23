@@ -63,6 +63,7 @@ import Performance::*;
 import PerformanceMonitor::*;
 import BlueUtils::*;
 import AXI4::*;
+import AXI4_Events_BitVectorable_Instance::*;
 `endif
 import HasSpecBits::*;
 import Exec::*;
@@ -243,9 +244,6 @@ endinstance
 instance BitVectorable #(EventsCache, SizeOf#(HpmRpt), EventsCacheElements) provisos (Bits #(EventsCache, m));
    function Vector#(EventsCacheElements, HpmRpt) to_vector(EventsCache e) =
       reverse(unpack(pack(e)));
-endinstance
-instance BitVectorable#(AXI4_Events, 1, n) provisos (Bits#(AXI4_Events, n));
-   function to_vector = struct_to_vector;
 endinstance
 `endif
 
