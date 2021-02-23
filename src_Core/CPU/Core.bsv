@@ -1519,6 +1519,7 @@ module mkCore#(CoreId coreId)(Core);
 `ifdef PERFORMANCE_MONITORING
     method events_llc = events_llc_reg._write;
     method events_tgc = events_tgc_reg._write;
+    method events_axi = events_axi_reg._write;
 `endif
 
 endmodule
