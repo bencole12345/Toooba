@@ -206,7 +206,7 @@ endinterface
 
 module mkAluExePipeline#(AluExeInput inIfc)(AluExePipeline);
     Bool verbose = False;
-    Integer verbosity = 0;
+    Integer verbosity = 1;
 
     // alu reservation station
     ReservationStationAlu rsAlu <- mkReservationStationAlu;
