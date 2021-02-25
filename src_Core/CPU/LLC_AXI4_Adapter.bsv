@@ -70,7 +70,7 @@ module mkLLC_AXi4_Adapter #(MemFifoClient #(idT, childT) llc)
             Add#(SizeOf#(Line), 0, TAdd#(512, 4))); // assert Line sz = 512 + 4 tags
 
    // Verbosity: 0: quiet; 1: LLC transactions; 2: loop detail
-   Integer verbosity = 0;
+   Integer verbosity = 1;
    Reg #(Bit #(4)) cfg_verbosity <- mkConfigReg (fromInteger (verbosity));
 
    // ================================================================
