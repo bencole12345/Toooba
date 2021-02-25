@@ -5,7 +5,7 @@ int main(void) {
         //"li t0, 0x6;"//Event ID for AUIPC
         "csrw mhpmevent3, t0;"
         "csrr t1, mhpmcounter3;"
-        "li t0, 1;"
+        "li t0, 20;"
         "loop: addi t0, t0, -1;"
         "auipc t2, 0x100;"
         "srli t2, t2, 2;"
