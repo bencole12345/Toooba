@@ -107,6 +107,8 @@ import DM_CPU_Req_Rsp ::*;
 import Monitored :: *;
 `endif
 
+import Praesidio_MemoryShim :: *;
+
 // ================================================================
 // The Core module
 
@@ -180,13 +182,18 @@ module mkCoreW #(Reset dm_power_on_reset)
    // AXI4 tagController
    TagControllerAXI#(Wd_MId, Wd_Addr, Wd_Data) tagController <- mkTagControllerAXI(reset_by all_harts_reset); // TODO double check if reseting like this is good enough
    let proc_initiator0 = proc.master0;
+   let tagController_target = tagController.slave;
+   Praesidio_MemoryShim#(Wd_MId, Wd_Addr, Wd_Data, Wd_AW_User,
+                  Wd_W_User, Wd_B_User, Wd_AR_User, Wd_R_User)
+                  praesidio_shim <- mkPraesidio_MemoryShim(reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    let monitored_initiator <- monitorAXI4_Initiator(proc_initiator0);
    let unwrappedInitiator = monitored_initiator.ifc;
 `else
    let unwrappedInitiator = proc_initiator0;
 `endif
-   mkConnection(unwrappedInitiator, tagController.slave, reset_by all_harts_reset);
+   mkConnection(unwrappedInitiator, praesidio_shim.target, reset_by all_harts_reset);
+   mkConnection(praesidio_shim.initiator, tagController_target, reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    rule report_tagController_events;
       Vector#(7, Bit#(1)) evts = tagController.events;

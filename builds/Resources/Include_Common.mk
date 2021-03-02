@@ -42,7 +42,7 @@ BLUESTUFF_DIRS = $(REPO)/libs/BlueStuff:$(REPO)/libs/BlueStuff/AXI:$(REPO)/libs/
 
 TAGCONTROLLER_DIRS = $(REPO)/libs/TagController/TagController:$(REPO)/libs/TagController/TagController/CacheCore
 
-BSC_PATH = $(BLUESTUFF_DIRS):$(ALL_RISCY_DIRS):$(CORE_DIRS):$(TESTBENCH_DIRS):$(TAGCONTROLLER_DIRS):+
+BSC_PATH = $(BLUESTUFF_DIRS):$(ALL_RISCY_DIRS):$(CORE_DIRS):$(TESTBENCH_DIRS):$(TAGCONTROLLER_DIRS):$(REPO)/libs/praesidio-hardware:+
 
 # ----------------
 # Top-level file and module
