@@ -187,13 +187,13 @@ module mkCoreW #(Reset dm_power_on_reset)
                   Wd_W_User, Wd_B_User, Wd_AR_User, Wd_R_User)
                   praesidio_shim <- mkPraesidio_MemoryShim(reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
-   let monitored_initiator <- monitorAXI4_Initiator(proc_initiator0);
+   let monitored_initiator <- monitorAXI4_Initiator(praesidio_shim.initiator);
    let unwrappedInitiator = monitored_initiator.ifc;
 `else
-   let unwrappedInitiator = proc_initiator0;
+   let unwrappedInitiator = praesidio_shim.initiator;
 `endif
-   mkConnection(unwrappedInitiator, praesidio_shim.target, reset_by all_harts_reset);
-   mkConnection(praesidio_shim.initiator, tagController_target, reset_by all_harts_reset);
+   mkConnection(proc_initiator0, praesidio_shim.target, reset_by all_harts_reset);
+   mkConnection(unwrappedInitiator, tagController_target, reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    rule report_tagController_events;
       Vector#(7, Bit#(1)) evts = tagController.events;
