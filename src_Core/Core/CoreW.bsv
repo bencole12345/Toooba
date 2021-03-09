@@ -183,9 +183,11 @@ module mkCoreW #(Reset dm_power_on_reset)
    TagControllerAXI#(Wd_MId, Wd_Addr, Wd_Data) tagController <- mkTagControllerAXI(reset_by all_harts_reset); // TODO double check if reseting like this is good enough
    let proc_initiator0 = proc.master0;
    let tagController_target = tagController.slave;
-   Praesidio_MemoryShim#(Wd_MId, Wd_Addr, Wd_Data, Wd_AW_User,
-                  Wd_W_User, Wd_B_User, Wd_AR_User, Wd_R_User)
-                  praesidio_shim <- mkPraesidio_MemoryShim(reset_by all_harts_reset);
+   Praesidio_MemoryShim#(Wd_MId, Wd_Addr, Wd_Data, Wd_AW_User, Wd_W_User, Wd_B_User, Wd_AR_User, Wd_R_User)
+                  praesidio_shim <- mkPraesidio_MemoryShim(
+                    rangeBase(soc_map.m_mem0_controller_addr_range),
+                    rangeTop(soc_map.m_mem0_controller_addr_range),
+                    reset_by all_harts_reset);
 `ifdef PERFORMANCE_MONITORING
    let monitored_initiator <- monitorAXI4_Initiator(praesidio_shim.initiator);
    let unwrappedInitiator = monitored_initiator.ifc;
