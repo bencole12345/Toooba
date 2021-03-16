@@ -46,6 +46,7 @@ typedef Bit#(TLog #(Num_Slaves_2x3))  Slave_Num_2x3;
 typedef 4 Wd_MId_2x3;
 typedef TAdd#(Wd_MId_2x3, TLog#(Num_Masters_2x3)) Wd_SId_2x3;
 typedef Wd_SId_2x3 Wd_MId;
+typedef Wd_MId Wd_IId;
 
 // ----------------
 // Width of fabric 'addr' buses
