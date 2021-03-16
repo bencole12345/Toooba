@@ -181,22 +181,20 @@ module mkCoreW #(Reset dm_power_on_reset)
    // handle cached interface
    // AXI4 tagController
    TagControllerAXI#(Wd_MId, Wd_Addr, Wd_Data) tagController <- mkTagControllerAXI(reset_by all_harts_reset); // TODO double check if reseting like this is good enough
+
    let proc_initiator0 = proc.master0;
    let tagController_target = tagController.slave;
-   Praesidio_MemoryShim#(Wd_MId, Wd_Addr, Wd_Data, Wd_AW_User, Wd_W_User, Wd_B_User, Wd_AR_User, Wd_R_User)
-                  praesidio_shim <- mkPraesidio_MemoryShim(
+   let tagController_initiator = tagController.master;
+
+   Praesidio_MemoryShim#(TAdd#(Wd_IId,1), Wd_Addr, Wd_Data, 0, 0, 0, 0, 0) praesidio_shim <- mkPraesidio_MemoryShim(
                     rangeBase(soc_map.m_mem0_controller_addr_range),
                     rangeTop(soc_map.m_mem0_controller_addr_range),
                     reset_by all_harts_reset);
+   mkConnection(proc_initiator0, tagController_target, reset_by all_harts_reset);
+   mkConnection(tagController_initiator, praesidio_shim.target);
 `ifdef PERFORMANCE_MONITORING
    let monitored_initiator <- monitorAXI4_Initiator(praesidio_shim.initiator);
-   let unwrappedInitiator = monitored_initiator.ifc;
-`else
-   let unwrappedInitiator = praesidio_shim.initiator;
-`endif
-   mkConnection(proc_initiator0, praesidio_shim.target, reset_by all_harts_reset);
-   mkConnection(unwrappedInitiator, tagController_target, reset_by all_harts_reset);
-`ifdef PERFORMANCE_MONITORING
+   let unwrapped_initiator = monitored_initiator.ifc;
    rule report_tagController_events;
       Vector#(7, Bit#(1)) evts = tagController.events;
       EventsCache ce = unpack(0);
@@ -209,6 +207,8 @@ module mkCoreW #(Reset dm_power_on_reset)
       proc.events_tgc(ce);
       proc.events_axi(monitored_initiator.events);
    endrule
+`else
+   let unwrapped_initiator = praesidio_shim.initiator;
 `endif
 
    // PLIC (Platform-Level Interrupt Controller)
@@ -470,8 +470,7 @@ module mkCoreW #(Reset dm_power_on_reset)
    // ----------------------------------------------------------------
    // AXI4 Fabric interfaces
 
-   // Cached master to Fabric master interface
-   interface cpu_imem_master = tagController.master;
+   interface cpu_imem_master = unwrapped_initiator;
 
    // Uncached master to Fabric master interface
    interface cpu_dmem_master = extendIDFields(zeroMasterUserFields(uncached_mem_shim.master), 0);
