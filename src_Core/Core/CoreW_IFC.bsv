@@ -129,6 +129,10 @@ interface CoreW_IFC #(numeric type t_n_interrupt_sources);
    interface Get #(Info_CPU_to_Verifier)  tv_verifier_info_get;
 `endif
 
+`ifdef PERFORMANCE_MONITORING
+    method Action events_axi(AXI4_Events events);
+`endif
+
 endinterface
 
 // ================================================================

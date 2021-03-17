@@ -500,6 +500,10 @@ module mkCoreW #(Reset dm_power_on_reset)
    endinterface
 `endif
 
+`ifdef PERFORMANCE_MONITORING
+   method events_axi = proc.events_axi;
+`endif
+
 endmodule: mkCoreW
 
 (* synthesize *)
