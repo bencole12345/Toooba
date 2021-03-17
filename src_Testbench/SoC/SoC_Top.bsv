@@ -56,9 +56,9 @@ import SoC_Map     :: *;
 
 // SoC components (CPU, mem, and IPs)
 
-import CoreW_IFC :: *;
-import CoreW     :: *;
-import PLIC      :: *;    // For interface to PLIC interrupt sources, in CoreW_IFC
+import CoreW_IFC        :: *;
+import Praesidio_CoreWW :: *;
+import PLIC             :: *;    // For interface to PLIC interrupt sources, in CoreW_IFC
 
 import Boot_ROM       :: *;
 import Mem_Controller :: *;
@@ -148,7 +148,7 @@ module mkSoC_Top #(Reset dm_power_on_reset)
    // Core: CPU + Near_Mem_IO (CLINT) + PLIC + Debug module (optional) + TV (optional)
    // The Debug Module has its own RST_N reset signal (which comes
    // from outside this module as a paramter)
-   CoreW_IFC #(N_External_Interrupt_Sources)  corew <- mkCoreW (dm_power_on_reset);
+   CoreW_IFC #(N_External_Interrupt_Sources)  corew <- mkCoreWW (dm_power_on_reset);
 
    // SoC Boot ROM
    Boot_ROM_IFC  boot_rom <- mkBoot_ROM;
