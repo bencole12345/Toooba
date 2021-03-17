@@ -38,7 +38,7 @@
 import Types::*;
 import ProcTypes::*;
 import ConfigReg::*;
-import RegFile::*;
+import RWBramCore::*;
 import Vector::*;
 import CHERICC_Fat::*;
 import CHERICap::*;
@@ -47,7 +47,8 @@ export NextAddrPred(..);
 export mkBtb;
 
 interface NextAddrPred;
-    method Maybe#(CapMem) predPc(CapMem pc);
+    method Action put_pc(CapMem pc);
+    interface Vector#(SupSizeX2, Maybe#(CapMem)) pred;
     method Action update(CapMem pc, CapMem brTarget, Bool taken);
     // security
     method Action flush;
@@ -57,8 +58,15 @@ endinterface
 // Local BTB Typedefs
 typedef 1 PcLsbsIgnore;
 typedef 256 BtbEntries; // 4KB BTB
-typedef Bit#(TLog#(BtbEntries)) BtbIndex;
+typedef Bit#(TLog#(SupSizeX2)) BtbBank;
+typedef TDiv#(BtbEntries,SupSizeX2) BtbIndices;
+typedef Bit#(TLog#(BtbIndices)) BtbIndex;
 typedef Bit#(TSub#(TSub#(AddrSz, TLog#(BtbEntries)), PcLsbsIgnore)) BtbTag;
+typedef struct {
+    BtbTag tag;
+    BtbIndex index;
+    BtbBank bank;
+} BtbAddr deriving(Bits, Eq, FShow);
 
 typedef struct {
     CapMem pc;
@@ -66,13 +74,20 @@ typedef struct {
     Bool taken;
 } BtbUpdate deriving(Bits, Eq, FShow);
 
-// No synthesize boundary because we need to call predPC several times
+typedef struct {
+    BtbTag tag;
+    CapMem nextPc;
+} BtbRecord deriving(Bits, Eq, FShow);
+
+(* synthesize *)
 module mkBtb(NextAddrPred);
     // Read and Write ordering doesn't matter since this is a predictor
     // mkRegFileWCF is the RegFile version of mkConfigReg
-    RegFile#(BtbIndex, CapMem) next_addrs <- mkRegFileWCF(0,fromInteger(valueOf(BtbEntries)-1));
-    RegFile#(BtbIndex, BtbTag) tags <- mkRegFileWCF(0,fromInteger(valueOf(BtbEntries)-1));
-    Vector#(BtbEntries, Reg#(Bool)) valid <- replicateM(mkConfigReg(False));
+    Reg#(BtbTag) tag_reg <- mkRegU;
+    Reg#(BtbBank) firstBank_reg <- mkRegU;
+    Vector#(SupSizeX2, Reg#(BtbIndex)) idxs_reg <- replicateM(mkRegU);
+    Vector#(SupSizeX2, RWBramCore#(BtbIndex, BtbRecord)) records <- replicateM(mkRWBramCoreUG);
+    Vector#(SupSizeX2, Vector#(BtbIndices, Reg#(Bool))) valid <- replicateM(replicateM(mkConfigReg(False)));
 
     RWire#(BtbUpdate) updateEn <- mkRWire;
 
@@ -82,8 +97,10 @@ module mkBtb(NextAddrPred);
     Bool flushDone = True;
 `endif
 
-    function BtbIndex getIndex(CapMem pc) = truncate(getAddr(pc) >> valueof(PcLsbsIgnore));
-    function BtbTag getTag(CapMem pc) = truncateLSB(getAddr(pc));
+    function BtbAddr getBtbAddr(CapMem pc) = unpack(truncateLSB(getAddr(pc)));
+    function BtbBank getBank(CapMem pc) = getBtbAddr(pc).bank;
+    function BtbIndex getIndex(CapMem pc) = getBtbAddr(pc).index;
+    function BtbTag getTag(CapMem pc) = getBtbAddr(pc).tag;
 
     // no flush, accept update
     (* fire_when_enabled, no_implicit_conditions *)
@@ -94,31 +111,48 @@ module mkBtb(NextAddrPred);
 
         let index = getIndex(pc);
         let tag = getTag(pc);
+        let bank = getBank(pc);
         if(taken) begin
-            valid[index] <= True;
-            tags.upd(index, tag);
-            next_addrs.upd(index, nextPc);
-        end else if( tags.sub(index) == tag ) begin
-            // current instruction has target in btb, so clear it
-            valid[index] <= False;
+            valid[bank][index] <= True;
+            records[bank].wrReq(index, BtbRecord{tag: tag, nextPc: nextPc});
+        end else begin
+            // current instruction had been prediceted taken, so clear its target in the TLB
+            valid[bank][index] <= False;
+            records[bank].wrReq(index, BtbRecord{tag: {4'ha,0}, nextPc: nextPc}); // An invalid virtual address.
         end
     endrule
 
 `ifdef SECURITY
     // flush, clear everything (and drop update)
     rule doFlush(!flushDone);
-        writeVReg(valid, replicate(False));
+        for (Integer i = 0; i < valueOf(SupSizeX2); i = i + 1) writeVReg(valid[i], replicate(False));
         flushDone <= True;
     endrule
 `endif
 
-    method Maybe#(CapMem) predPc(CapMem pc);
-        BtbIndex index = getIndex(pc);
-        BtbTag tag = getTag(pc);
-        if(valid[index] && tag == tags.sub(index))
-            return tagged Valid next_addrs.sub(index);
-        else
-            return tagged Invalid;
+    method Action put_pc(CapMem pc);
+        BtbAddr addr = getBtbAddr(pc);
+        tag_reg <= addr.tag;
+        firstBank_reg <= addr.bank;
+        for (Integer i = 0; i < valueOf(SupSizeX2); i = i + 1) begin
+            BtbAddr a = unpack(pack(addr) + fromInteger(i));
+            idxs_reg[a.bank] <= a.index;
+            records[a.bank].rdReq(a.index);
+        end
+    endmethod
+
+    method Vector#(SupSizeX2, Maybe#(CapMem)) pred;
+        Vector#(SupSizeX2, Maybe#(BtbRecord)) recs = ?;
+        for (Integer i = 0; i < valueOf(SupSizeX2); i = i + 1)
+            recs[i] = (valid[i][idxs_reg[i]]) ? Valid(records[i].rdResp):Invalid;
+        function Maybe#(CapMem) tagHit(Maybe#(BtbRecord) br) =
+            case (br) matches
+                tagged Valid .b &&& (tag_reg == b.tag): return Valid(b.nextPc);
+                tagged Invalid: return Invalid;
+            endcase;
+        Vector#(SupSizeX2, Maybe#(CapMem)) ppcs = map(tagHit,recs);
+        ppcs = rotateBy(ppcs,unpack(-firstBank_reg)); // Rotate firstBank down to zeroeth element.
+        return ppcs;
     endmethod
 
     method Action update(CapMem pc, CapMem nextPc, Bool taken);

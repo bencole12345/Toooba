@@ -4,7 +4,7 @@
 
 .PHONY: help
 help:
-	@echo '    make  compile      Recompile Core (CPU, caches) into Verilog_RTL and copies into xilinx_ip/hdl'
+	@echo '    make  compile      Recompile Core (CPU, caches) into Verilog_RTL'
 	@echo '                           NOTE: needs Bluespec bsc compiler'
 	@echo ''
 	@echo '    make  clean        Remove intermediate build-files'
@@ -32,6 +32,7 @@ BSC_COMPILATION_FLAGS += \
 	-D PERFORMANCE_MONITORING \
 	-D SHIFT_BARREL    \
 	-D MULT_SERIAL    \
+        -D NUM_CORES=2 \
 	-D Near_Mem_Caches    \
 	-D FABRIC64    \
 	-D CAP128 \
@@ -69,15 +70,14 @@ ALL_RISCY_DIRS = $(RISCY_DIRS):$(CONNECTAL_DIRS):$(CHERI_DIRS)
 # ================================================================
 # Search path for bsc for .bsv files
 
+CONTRIB_DIRS = %/Libraries/Bus
 CORE_DIRS = $(REPO)/src_Core/CPU:$(REPO)/src_Core/ISA:$(REPO)/src_Core/Core:$(REPO)/src_Core/PLIC:$(REPO)/src_Core/Debug_Module:$(REPO)/src_Core/BSV_Additional_Libs
 
 BLUESTUFF_DIRS = $(REPO)/libs/BlueStuff:$(REPO)/libs/BlueStuff/AXI:$(REPO)/libs/BlueStuff/BlueUtils:$(REPO)/libs/BlueStuff/BlueBasics
 
 TAGCONTROLLER_DIRS = $(REPO)/libs/TagController/TagController:$(REPO)/libs/TagController/TagController/CacheCore
 
-TLM_DIRS = %/Libraries/TLM3:%/Libraries/Axi:%/Libraries/Axi4:%/Libraries/AMBA_TLM3/TLM3:%/Libraries/AMBA_TLM3/Axi:%/Libraries/AMBA_TLM3/Axi4:%/Libraries/Bus
-
-BSC_PATH = -p $(ALL_RISCY_DIRS):$(CORE_DIRS):src_BSV:$(BLUESTUFF_DIRS):$(TAGCONTROLLER_DIRS):+:$(TLM_DIRS)
+BSC_PATH = -p $(CONTRIB_DIRS):$(ALL_RISCY_DIRS):$(CORE_DIRS):src_BSV:$(BLUESTUFF_DIRS):$(TAGCONTROLLER_DIRS):+
 
 # ----------------
 # Top-level file and module
@@ -115,15 +115,13 @@ Verilog_RTL_sim:
 	mkdir -p $@
 
 .PHONY: compile_synth
-compile_synth:  build_dir_synth Verilog_RTL
+compile_synth: | build_dir_synth Verilog_RTL
 	@echo  "INFO: Generating RTL into Verilog_RTL for synthesis ..."
 	bsc -u -elab -verilog  -vdir Verilog_RTL $(BUILD_DIRS_SYNTH)  $(BSC_COMPILATION_FLAGS)  $(SYNTH_BSC_OPTIONS) $(BSC_PATH)  $(TOPFILE)
 	@echo  "INFO: Generated Synth RTL into Verilog_RTL"
-	cp  Verilog_RTL/*  xilinx_ip/hdl/
-	@echo  "INFO: Copied RTL from  Verilog_RTL/  to  xilinx_ip/hdl/"
 
 .PHONY: compile_sim
-compile_sim:  build_dir_sim Verilog_RTL_sim
+compile_sim: | build_dir_sim Verilog_RTL_sim
 	@echo  "INFO: Generating RTL into Verilog_RTL_sim for simulation ..."
 	bsc -u -elab -verilog  -vdir Verilog_RTL_sim $(BUILD_DIRS_SIM)  $(BSC_COMPILATION_FLAGS) $(SIM_BSC_OPTIONS) $(BSC_PATH)  $(TOPFILE)
 

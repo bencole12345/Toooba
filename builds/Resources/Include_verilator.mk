@@ -18,7 +18,7 @@ Verilog_RTL:
 ifeq (,$(filter clean full_clean,$(MAKECMDGOALS)))
 include .depends.mk
 
-.depends.mk: build_dir Verilog_RTL
+.depends.mk: | build_dir Verilog_RTL
 	if ! bluetcl -exec makedepend -verilog -elab  $(RTL_GEN_DIRS)  $(BSC_COMPILATION_FLAGS) -p $(BSC_PATH) -o $@ $(TOPFILE); then rm -f $@ && false; fi
 endif
 
@@ -27,7 +27,7 @@ endif
 	bsc -verilog -elab  $(RTL_GEN_DIRS)  $(BSC_COMPILATION_FLAGS) -p $(BSC_PATH) $<
 
 .PHONY: compile
-compile: build_dir Verilog_RTL build_dir/Top_HW_Side.bo
+compile: build_dir/Top_HW_Side.bo | build_dir Verilog_RTL
 #Verilog_RTL/mkTop_HW_Side.v:  build_dir Verilog_RTL /tmp/src_dir $(VERILOG_SUB_MODULES)
 #Verilog_RTL/mkTop_HW_Side.v: $(TOPFILE) build_dir/Top_HW_Side.bo build_dir Verilog_RTL
 #	@echo  "INFO: Verilog RTL generation ..."
@@ -49,6 +49,12 @@ SIM_EXE_FILE = exe_HW_sim
 
 VERILATOR_FLAGS = --stats --x-assign fast --x-initial fast --noassert
 # VERILATOR_FLAGS = --stats -O3 -CFLAGS -O3 -LDFLAGS -static --x-assign fast --x-initial fast --noassert
+
+# XXX: Allow lint_off DEPRECATED for older Verilator versions.
+#      This was added around the same time as -msg was deprecated, so we need
+#      to suppress the deprecation messages without breaking older versions.
+#      See verilator_config.vlt. Remove once 4.026 can be relied upon.
+VERILATOR_FLAGS += -Wfuture-DEPRECATED
 
 # Verilator flags: use the following to include code to generate VCDs
 # Select trace-depth according to your module hierarchy

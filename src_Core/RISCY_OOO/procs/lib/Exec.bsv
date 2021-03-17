@@ -287,6 +287,8 @@ function Data capInspect(CapPipe a, CapPipe b, CapInspectFunc func);
                                    && ((getPerms(a) & getPerms(b)) == getPerms(a))
                                    && (getBase(a) >= getBase(b))
                                    && (getTop(a) <= getTop(b))));
+               tagged SetEqualExact          :
+                   zeroExtend(pack(toMem(a) == toMem(b)));
                tagged GetLen                 :
                    truncate(getLength(a));
                tagged GetBase                :
@@ -516,11 +518,12 @@ function Maybe#(Trap) checkForException(
         Bool read_only  = (csr [11:10] == 2'b11);
         Bool write_deny = (writes_csr && read_only);
         Bool asr_allow = getHardPerms(pcc).accessSysRegs
-                      //|| ((csr_addr_hpmcounter3 <= csr) && (csr <= csr_addr_hpmcounter31) && !writes_csr) // TODO seems these aren't implemented?
+                      || ((pack(csrAddrHPMCOUNTER3) <= csr) && (csr <= pack(csrAddrHPMCOUNTER31)) && !writes_csr)
                       || (csr == pack(csrAddrFFLAGS))
                       || (csr == pack(csrAddrFRM))
                       || (csr == pack(csrAddrFCSR))
                       || (csr == pack(csrAddrCYCLE) && !writes_csr)
+                      || (csr == pack(csrAddrTIME) && !writes_csr)
                       || (csr == pack(csrAddrINSTRET) && !writes_csr);
         Bool unimplemented = (csr == pack(csrAddrNone));    // Added by Bluespec
         if (write_deny || !csr_has_priv || unimplemented) begin

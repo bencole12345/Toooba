@@ -19,3 +19,5 @@ builds/RV*/build_dir
 builds/RV*/Verilog_RTL
 .depends.mk
 source.sh
+src_SSITH_P3/Verilog_RTL
+src_SSITH_P3/Verilog_RTL_sim
