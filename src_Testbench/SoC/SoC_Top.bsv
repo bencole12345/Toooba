@@ -174,15 +174,13 @@ module mkSoC_Top #(Reset dm_power_on_reset)
    // SoC fabric master connections
    // Note: see 'SoC_Map' for 'master_num' definitions
 
-   Vector#(Num_Masters, AXI4_Master #(TAdd#(Wd_MId,1), Wd_Addr, Wd_Data,
+   Vector#(1, AXI4_Initiator #(TAdd#(Wd_IId,2), Wd_Addr, Wd_Data,
                                       0, 0, 0, 0, 0))
-      master_vector = newVector;
+      initiator_vector = newVector;
 
    // CPU IMem master to fabric
-   master_vector[imem_master_num] = corew.cpu_imem_master;
-
-   // CPU DMem master to fabric
-   master_vector[dmem_master_num] = corew.cpu_dmem_master;
+   let mem_initiator_num = imem_master_num;
+   initiator_vector[mem_initiator_num] = corew.cpu_mem_initiator;
 
    // ----------------
    // SoC fabric slave connections
@@ -221,8 +219,9 @@ module mkSoC_Top #(Reset dm_power_on_reset)
 `endif
 
    // SoC Fabric
+   let target_vector = slave_vector;
    let bus <- mkAXI4Bus (routeFromMappingTable(route_vector),
-                         master_vector, slave_vector);
+                         initiator_vector, target_vector);
 
    // ----------------
    // Connect interrupt sources for CPU external interrupt request inputs.
