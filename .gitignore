@@ -21,4 +21,4 @@ builds/RV*/Verilog_RTL
 source.sh
 src_SSITH_P3/Verilog_RTL
 src_SSITH_P3/Verilog_RTL_sim
-TagTableStructure.bsv
+**/TagTableStructure.bsv
