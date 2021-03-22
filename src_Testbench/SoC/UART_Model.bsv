@@ -219,7 +219,7 @@ module mkUART (UART_IFC);
    // ----------------
    // Connector to AXI4 fabric
 
-   let slave_shim <- mkAXI4Shim;
+   let slave_shim <- mkAXI4ShimFF;
 
    // ----------------
    // character queues to and from external circuitry for the console
