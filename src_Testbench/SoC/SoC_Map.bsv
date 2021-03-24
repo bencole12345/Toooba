@@ -47,6 +47,7 @@ export  dmem_master_num;
 
 export  Num_Slaves;
 export  Wd_SId;
+export  Wd_TId;
 export  boot_rom_slave_num;
 export  mem0_controller_slave_num;
 export  uart0_slave_num;
