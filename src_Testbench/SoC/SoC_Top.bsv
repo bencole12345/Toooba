@@ -148,7 +148,7 @@ module mkSoC_Top #(Reset dm_power_on_reset)
    // Core: CPU + Near_Mem_IO (CLINT) + PLIC + Debug module (optional) + TV (optional)
    // The Debug Module has its own RST_N reset signal (which comes
    // from outside this module as a paramter)
-   Praesidio_CoreWW #(N_External_Interrupt_Sources)  corew <- mkPraesidioCoreWW (dm_power_on_reset);
+   Praesidio_CoreWW #(N_External_Interrupt_Sources, Wd_TId)  corew <- mkPraesidioCoreWW (dm_power_on_reset);
 
    // SoC Boot ROM
    Boot_ROM_IFC  boot_rom <- mkBoot_ROM;
@@ -172,13 +172,13 @@ module mkSoC_Top #(Reset dm_power_on_reset)
 
    // ----------------
    // SoC fabric master connections
-   // Note: see 'SoC_Map' for 'master_num' definitions
+   // Note: see 'SoC_Map' for definitions
 
    Vector#(1, AXI4_Initiator #(TAdd#(Wd_IId,2), Wd_Addr, Wd_Data,
                                       0, 0, 0, 0, 0))
       initiator_vector = newVector;
 
-   // CPU IMem master to fabric
+   // CPU mem interface to fabric
    let mem_initiator_num = imem_master_num;
    initiator_vector[mem_initiator_num] = corew.cpu_mem_initiator;
 

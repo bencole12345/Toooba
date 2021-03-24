@@ -96,6 +96,7 @@ SoC_Map_Struct {
 
 interface SoC_Map_IFC;
    (* always_ready *)   method  Range#(Wd_Addr)  m_near_mem_io_addr_range;
+   (* always_ready *)   method  Range#(Wd_Addr)  m_praesidio_conf_addr_range;
    (* always_ready *)   method  Range#(Wd_Addr)  m_plic_addr_range;
    (* always_ready *)   method  Range#(Wd_Addr)  m_uart0_addr_range;
    (* always_ready *)   method  Range#(Wd_Addr)  m_boot_rom_addr_range;
@@ -127,6 +128,13 @@ module mkSoC_Map (SoC_Map_IFC);
    let near_mem_io_addr_range = Range {
       base: 'h_0200_0000,
       size: 'h_0000_C000    // 48K
+   };
+
+   // ----------------------------------------------------------------
+   // Praesidio configuration address range
+   let praesidio_conf_addr_range = Range {
+      base: 'h_0300_0000,
+      size: 'h_0000_1000
    };
 
    // ----------------------------------------------------------------
@@ -218,6 +226,7 @@ module mkSoC_Map (SoC_Map_IFC);
    // INTERFACE
 
    method  Range#(Wd_Addr)  m_near_mem_io_addr_range = near_mem_io_addr_range;
+   method  Range#(Wd_Addr)  m_praesidio_conf_addr_range = praesidio_conf_addr_range;
    method  Range#(Wd_Addr)  m_plic_addr_range = plic_addr_range;
    method  Range#(Wd_Addr)  m_uart0_addr_range = uart0_addr_range;
    method  Range#(Wd_Addr)  m_boot_rom_addr_range = boot_rom_addr_range;
@@ -257,6 +266,7 @@ Integer uart0_slave_num           = 2;
 // ================================================================
 // Width of fabric 'id' buses
 typedef TAdd#(TAdd#(Wd_MId, TLog#(Num_Masters)),1) Wd_SId;
+typedef Wd_SId Wd_TId;
 
 // ================================================================
 // Interrupt request numbers (== index in to vector of
