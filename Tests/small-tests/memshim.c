@@ -11,8 +11,8 @@ enum ConfigOp{
   ConfigOpInit
 };
 
-int performPraesidioConfigOps(int argAddress, enum ConfigOp op) {
-  volatile int* configAddress;
+int performPraesidioConfigOps(unsigned long long argAddress, enum ConfigOp op) {
+  volatile unsigned long long* configAddress;
   switch (op) {
     case ConfigOpRevoke:
       configAddress = CONFIG_ADDRESS_REVOKE;
