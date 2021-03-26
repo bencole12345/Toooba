@@ -148,7 +148,7 @@ module mkSoC_Top #(Reset dm_power_on_reset)
    // Core: CPU + Near_Mem_IO (CLINT) + PLIC + Debug module (optional) + TV (optional)
    // The Debug Module has its own RST_N reset signal (which comes
    // from outside this module as a paramter)
-   Praesidio_CoreWW #(N_External_Interrupt_Sources, Wd_TId)  corew <- mkPraesidioCoreWW (dm_power_on_reset);
+   Praesidio_CoreWW #(N_External_Interrupt_Sources, Wd_SId)  corew <- mkPraesidioCoreWW (dm_power_on_reset);
 
    // SoC Boot ROM
    Boot_ROM_IFC  boot_rom <- mkBoot_ROM;
@@ -186,42 +186,45 @@ module mkSoC_Top #(Reset dm_power_on_reset)
    // SoC fabric slave connections
    // Note: see 'SoC_Map' for 'slave_num' definitions
 
-   Vector#(Num_Slaves, AXI4_Slave #(Wd_SId, Wd_Addr, Wd_Data,
+   Vector#(Num_Subordinates, AXI4_Target #(Wd_SId, Wd_Addr, Wd_Data,
                                     0, 0, 0, 0, 0))
-      slave_vector = newVector;
-   Vector#(Num_Slaves, Range#(Wd_Addr)) route_vector = newVector;
+      subordinate_vector = newVector;
+   Vector#(Num_Subordinates, Range#(Wd_Addr)) route_vector = newVector;
 
    // Fabric to Boot ROM
    mkConnection(boot_rom_axi4_deburster.master, boot_rom.slave);
-   slave_vector[boot_rom_slave_num] = boot_rom_axi4_deburster.slave;
-   route_vector[boot_rom_slave_num] = soc_map.m_boot_rom_addr_range;
+   subordinate_vector[boot_rom_subordinate_num] = boot_rom_axi4_deburster.slave;
+   route_vector[boot_rom_subordinate_num] = soc_map.m_boot_rom_addr_range;
 
    // Fabric to Mem Controller
    mkConnection(mem0_controller_axi4_deburster.master, mem0_controller.slave);
-   slave_vector[mem0_controller_slave_num] = mem0_controller_axi4_deburster.slave;
-   route_vector[mem0_controller_slave_num] = soc_map.m_mem0_controller_addr_range;
+   subordinate_vector[mem0_controller_subordinate_num] = mem0_controller_axi4_deburster.slave;
+   route_vector[mem0_controller_subordinate_num] = soc_map.m_mem0_controller_addr_range;
 
    // Fabric to UART0
-   slave_vector[uart0_slave_num] = zeroSlaveUserFields(uart0.slave);
-   route_vector[uart0_slave_num] = soc_map.m_uart0_addr_range;
+   subordinate_vector[uart0_subordinate_num] = zeroSlaveUserFields(uart0.slave);
+   route_vector[uart0_subordinate_num] = soc_map.m_uart0_addr_range;
+
+   // Fabric to Praesidio Config
+   subordinate_vector[praesidio_subordinate_num] = corew.praesidio_config_target;
+   route_vector[praesidio_subordinate_num] = soc_map.m_praesidio_conf_addr_range;
 
 `ifdef INCLUDE_ACCEL0
    // Fabric to accel0
-   slave_vector[accel0_slave_num] = zeroSlaveUserFields (accel0.slave);
+   subordinate_vector[accel0_slave_num] = zeroSlaveUserFields (accel0.slave);
    route_vector[accel0_slave_num] = soc_map.m_accel0_addr_range;
 `endif
 
 `ifdef HTIF_MEMORY
    AXI4_Slave_IFC#(Wd_Id, Wd_Addr, Wd_Data, Wd_User) htif <- mkAxi4LRegFile(bytes_per_htif);
 
-   slave_vector[htif_slave_num] = htif;
+   subordinate_vector[htif_slave_num] = htif;
    route_vector[htif_slave_num] = soc_map.m_htif_addr_range;
 `endif
 
    // SoC Fabric
-   let target_vector = slave_vector;
    let bus <- mkAXI4Bus (routeFromMappingTable(route_vector),
-                         initiator_vector, target_vector);
+                         initiator_vector, subordinate_vector);
 
    // ----------------
    // Connect interrupt sources for CPU external interrupt request inputs.

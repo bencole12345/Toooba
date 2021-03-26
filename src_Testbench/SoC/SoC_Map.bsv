@@ -45,12 +45,12 @@ export  Num_Masters;
 export  imem_master_num;
 export  dmem_master_num;
 
-export  Num_Slaves;
+export  Num_Subordinates;
 export  Wd_SId;
-export  Wd_TId;
-export  boot_rom_slave_num;
-export  mem0_controller_slave_num;
-export  uart0_slave_num;
+export  boot_rom_subordinate_num;
+export  mem0_controller_subordinate_num;
+export  uart0_subordinate_num;
+export  praesidio_subordinate_num;
 
 export  N_External_Interrupt_Sources;
 export  n_external_interrupt_sources;
@@ -256,18 +256,18 @@ Integer imem_master_num = 0;
 Integer dmem_master_num = 1;
 
 // ================================================================
-// Count and slave-numbers of slaves in the fabric.
+// Count and subordinate-numbers of subordinates in the fabric.
 
-typedef 3 Num_Slaves;
+typedef 4 Num_Subordinates;
 
-Integer boot_rom_slave_num        = 0;
-Integer mem0_controller_slave_num = 1;
-Integer uart0_slave_num           = 2;
+Integer boot_rom_subordinate_num        = 0;
+Integer mem0_controller_subordinate_num = 1;
+Integer uart0_subordinate_num           = 2;
+Integer praesidio_subordinate_num       = 3;
 
 // ================================================================
 // Width of fabric 'id' buses
 typedef TAdd#(TAdd#(Wd_MId, TLog#(Num_Masters)),1) Wd_SId;
-typedef Wd_SId Wd_TId;
 
 // ================================================================
 // Interrupt request numbers (== index in to vector of
