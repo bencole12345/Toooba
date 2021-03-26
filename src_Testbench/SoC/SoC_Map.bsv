@@ -211,6 +211,7 @@ module mkSoC_Map (SoC_Map_IFC);
 		  && (   inRange(near_mem_io_addr_range, addr)
 		      || inRange(plic_addr_range, addr)
 		      || inRange(uart0_addr_range, addr)
+          || inRange(praesidio_conf_addr_range, addr)
 		      )
 		  )
 	      );
