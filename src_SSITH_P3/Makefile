@@ -31,6 +31,7 @@ BSC_COMPILATION_FLAGS += \
 	-D Near_Mem_Caches    \
 	-D FABRIC64    \
 	-D INCLUDE_GDB_CONTROL \
+	-D PERFORMANCE_MONITORING \
 	-D BRVF_TRACE \
 	-D XILINX_BSCAN  -D JTAG_TAP
 
@@ -54,8 +55,10 @@ RISCY_DIRS = $(RISCY_HOME)/procs/RV64G_OOO:$(RISCY_HOME)/procs/lib:$(RISCY_HOME)
 
 CONNECTAL_DIRS = $(RISCY_HOME)/connectal/bsv:$(RISCY_HOME)/connectal/tests/spi:$(RISCY_HOME)/connectal/lib/bsv
 
+BLUESTUFF_DIRS = $(REPO)/src_Core/BSV_Additional_Libs/BlueStuff:$(REPO)/src_Core/BSV_Additional_Libs/BlueStuff/BlueUtils:$(REPO)/src_Core
+
 # ALL_RISCY_DIRS = $(RISCY_DIRS)
-ALL_RISCY_DIRS = $(RISCY_DIRS):$(CONNECTAL_DIRS)
+ALL_RISCY_DIRS = $(RISCY_DIRS):$(CONNECTAL_DIRS):$(BLUESTUFF_DIRS)
 
 # ================================================================
 # Search path for bsc for .bsv files
