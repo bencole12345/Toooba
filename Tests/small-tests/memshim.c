@@ -44,8 +44,9 @@ int main(void) {
     //Initialize Praesidio Shim
     performPraesidioConfigOps(0x80000000, ConfigOpOwn);
     performPraesidioConfigOps(0x80007000, ConfigOpOwn);
-    performPraesidioConfigOps(0x80730000, ConfigOpRevoke);
+    performPraesidioConfigOps(0x80230000, ConfigOpRevoke);
     performPraesidioConfigOps(0xBF7DF000, ConfigOpOwn);
+    performPraesidioConfigOps(0x00000000, ConfigOpInit);
 
     //Loop that counts AXI4 requests coming out of CPU 
     asm volatile (
