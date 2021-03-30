@@ -245,6 +245,7 @@ typedef enum {
     CSRmie        = 12'h304,
     CSRmtvec      = 12'h305,
     CSRmcounteren = 12'h306,
+    CSRmcounterinhibit = 12'h320,
     CSRmscratch   = 12'h340,
     CSRmepc       = 12'h341,
     CSRmcause     = 12'h342,
@@ -256,6 +257,14 @@ typedef enum {
     CSRmarchid    = 12'hf12,
     CSRmimpid     = 12'hf13,
     CSRmhartid    = 12'hf14,
+`ifdef PERFORMANCE_MONITORING
+    CSRhpcounter3   = 12'hc03,
+    CSRhpcounter31  = 12'hc1f,
+    CSRmhpcounter3  = 12'hb03,
+    CSRmhpcounter31 = 12'hb1f,
+    CSRmhpmevent3   = 12'h323,
+    CSRmhpmevent31  = 12'h33f,
+`endif
 `ifdef SECURITY
     // sanctum machine CSR
     CSRmevbase    = 12'h7c0,
@@ -982,3 +991,76 @@ function Fmt showInst(Instruction inst);
   return ret;
 endfunction
 
+`ifdef PERFORMANCE_MONITORING
+typedef 112 No_Of_Evts;
+typedef   8 Report_Width;
+typedef  64 Counter_Width;
+typedef  29 No_Of_Ctrs;
+
+typedef struct {
+   SupCnt evt_REDIRECT;
+   SupCnt evt_TRAP;
+   SupCnt evt_BRANCH;
+   SupCnt evt_JAL;
+   SupCnt evt_JALR;
+   SupCnt evt_AUIPC;
+   SupCnt evt_LOAD;
+   SupCnt evt_STORE;
+   SupCnt evt_LR;
+   SupCnt evt_SC;
+   SupCnt evt_AMO;
+   SupCnt evt_SERIAL_SHIFT;
+   SupCnt evt_INT_MUL_DIV_REM;
+   SupCnt evt_FP;
+   SupCnt evt_SC_SUCCESS;
+   SupCnt evt_LOAD_WAIT;
+   SupCnt evt_STORE_WAIT;
+   SupCnt evt_FENCE;
+   SupCnt evt_F_BUSY_NO_CONSUME; // XXX
+   SupCnt evt_D_BUSY_NO_CONSUME; // XXX
+   SupCnt evt_1_BUSY_NO_CONSUME; // XXX
+   SupCnt evt_2_BUSY_NO_CONSUME; // XXX
+   SupCnt evt_3_BUSY_NO_CONSUME; // XXX
+   SupCnt evt_IMPRECISE_SETBOUND; // XXX
+   SupCnt evt_UNREPRESENTABLE_CAP; // XXX
+   SupCnt evt_MEM_CAP_LOAD;
+   SupCnt evt_MEM_CAP_STORE;
+   SupCnt evt_MEM_CAP_LOAD_TAG_SET;
+   SupCnt evt_MEM_CAP_STORE_TAG_SET;
+} EventsCore deriving (Bits, FShow);
+typedef TDiv#(SizeOf#(EventsCore),SizeOf#(SupCnt)) EventsCoreElements;
+
+typedef Bit#(Report_Width) HpmRpt;
+typedef struct {
+   HpmRpt evt_REDIRECT;
+   HpmRpt evt_TRAP;
+   HpmRpt evt_BRANCH;
+   HpmRpt evt_JAL;
+   HpmRpt evt_JALR;
+   HpmRpt evt_AUIPC;
+   HpmRpt evt_LOAD;
+   HpmRpt evt_STORE;
+   HpmRpt evt_LR;
+   HpmRpt evt_SC;
+   HpmRpt evt_AMO;
+   HpmRpt evt_SERIAL_SHIFT;
+   HpmRpt evt_INT_MUL_DIV_REM;
+   HpmRpt evt_FP;
+   HpmRpt evt_SC_SUCCESS;
+   HpmRpt evt_LOAD_WAIT;
+   HpmRpt evt_STORE_WAIT;
+   HpmRpt evt_FENCE;
+   HpmRpt evt_F_BUSY_NO_CONSUME; // XXX
+   HpmRpt evt_D_BUSY_NO_CONSUME; // XXX
+   HpmRpt evt_1_BUSY_NO_CONSUME; // XXX
+   HpmRpt evt_2_BUSY_NO_CONSUME; // XXX
+   HpmRpt evt_3_BUSY_NO_CONSUME; // XXX
+   HpmRpt evt_IMPRECISE_SETBOUND; // XXX
+   HpmRpt evt_UNREPRESENTABLE_CAP; // XXX
+   HpmRpt evt_MEM_CAP_LOAD;
+   HpmRpt evt_MEM_CAP_STORE;
+   HpmRpt evt_MEM_CAP_LOAD_TAG_SET;
+   HpmRpt evt_MEM_CAP_STORE_TAG_SET;
+} EventsCoreMem deriving (Bits, FShow); // Memory needs more space for reporting delays
+typedef TDiv#(SizeOf#(EventsCoreMem),Report_Width) EventsCoreMemElements;
+`endif
