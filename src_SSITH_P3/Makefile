@@ -82,7 +82,7 @@ BSC_COMPILATION_FLAGS += \
 	-keep-fires -aggressive-conditions \
 	-no-warn-action-shadowing -no-show-timestamps \
 	-suppress-warnings G0020    \
-	+RTS -K128M -RTS  -show-range-conflict
+	+RTS -K512000000 -RTS  -show-range-conflict
 
 # ================================================================
 # Generate Verilog RTL from BSV sources (needs Bluespec 'bsc' compiler)
