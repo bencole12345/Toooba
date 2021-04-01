@@ -45,6 +45,7 @@ int main(void) {
     performPraesidioConfigOps(0x80000000, ConfigOpOwn);
     performPraesidioConfigOps(0x80007000, ConfigOpOwn);
     performPraesidioConfigOps(0x80230000, ConfigOpRevoke);
+    performPraesidioConfigOps(0x80220000, ConfigOpRevoke);
     performPraesidioConfigOps(0xBF7DF000, ConfigOpOwn);
     performPraesidioConfigOps(0x00000000, ConfigOpInit);
 
