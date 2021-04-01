@@ -1112,7 +1112,8 @@ module mkCore#(CoreId coreId)(Core);
      EventsCache dataMem = unpack(pack(dMem.events) | pack(dTlb.events));
      Vector #(16, Bit #(Report_Width)) dmem_evts_vec = to_large_vector (dataMem);
      Vector #(32, Bit #(Report_Width)) external_evts_vec = replicate (0);//to_large_vector (w_external_evts);
-     Vector #(16, Bit #(Report_Width)) llc_evts_vec = to_large_vector (events_llc_reg);
+     EventsCache llMem = unpack(pack(events_llc_reg) | pack(l2Tlb.events));
+     Vector #(16, Bit #(Report_Width)) llc_evts_vec = to_large_vector (llMem);
      Vector #(16, Bit #(Report_Width)) tgc_evts_vec = to_large_vector (events_tgc_reg);
 
      let events = append (null_evt, core_evts_vec);
