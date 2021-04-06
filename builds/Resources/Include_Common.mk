@@ -58,6 +58,7 @@ BSC_COMPILATION_FLAGS += \
 	-keep-fires -aggressive-conditions -no-warn-action-shadowing -check-assert \
 	-suppress-warnings G0020 -steps-max-intervals 10000000   \
 	-steps-warn-interval 1000000 \
+	-show-schedule \
 	+RTS -K128M -RTS  -show-range-conflict
 
 # ================================================================
