@@ -46,7 +46,7 @@ import ISA_Decls_CHERI::*;
 import CacheUtils::*; // For CLoadTags alignment
 
 (* noinline *)
-function Maybe#(CSR_XCapCause) capChecksExec(CapPipe a, CapPipe b, CapPipe ddc, CapChecks toCheck, Bool cap_exact);
+function Maybe#(CSR_XCapCause) capChecksExec(CapPipe a, CapPipe b, CapPipe ddc, CapChecks toCheck, Bool cap_exact, Bit#(12) offset);
     function Maybe#(CSR_XCapCause) e1(CHERIException e)   = Valid(CSR_XCapCause{cheri_exc_reg: toCheck.rn1, cheri_exc_code: e});
     function Maybe#(CSR_XCapCause) e2(CHERIException e)   = Valid(CSR_XCapCause{cheri_exc_reg: toCheck.rn2, cheri_exc_code: e});
     function Maybe#(CSR_XCapCause) eDDC(CHERIException e) = Valid(CSR_XCapCause{cheri_exc_reg: {1'b1, pack(scrAddrDDC)}, cheri_exc_code: e});
@@ -95,6 +95,8 @@ function Maybe#(CSR_XCapCause) capChecksExec(CapPipe a, CapPipe b, CapPipe ddc, 
         result = e1(cheriExcLengthViolation);
     else if (toCheck.cap_exact                && !cap_exact)
         result = e1(cheriExcRepresentViolation);
+    else if (toCheck.stack_lifetime           && !lifetimesAreValid(a, b, offset))
+        result = e2(cheriExcStackLifetimeViolation);
     return result;
 endfunction
 
@@ -215,6 +217,11 @@ function Tuple2#(CapPipe, Bool) setBoundsALU(CapPipe cap, Data len, SetBoundsFun
 endfunction
 
 (* noinline *)
+function CapPipe setStackFrameSizeALU(CapPipe cap, Bit#(3) value, SetStackFrameSizeFunc setStackFrameSizeOp);
+    return setStackFrameSize(cap, value);
+endfunction
+
+(* noinline *)
 function CapPipe specialRWALU(CapPipe cap, CapPipe oldCap, SpecialRWFunc scrType);
     function csrOp (oldOffset, val, f) =
         case (f)
@@ -242,6 +249,8 @@ function Tuple2#(CapPipe,Bool) capModify(CapPipe a, CapPipe b, CapModifyFunc fun
                 t(modifyOffset(a, getAddr(b), offsetOp == IncOffset).value);
             tagged SetBounds .boundsOp    :
                 setBoundsALU(a, getAddr(b), boundsOp);
+            tagged SetStackFrameSize .setStackFrameSizeOp :
+                t(setStackFrameSize(a, truncate(getStackFrameSize(b))));
             tagged SpecialRW .scrType     :
                 t(case (scrType) matches
                       tagged TCC: b;
@@ -397,6 +406,8 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
     AluFunc alu_f = dInst.execFunc matches tagged Alu .alu_f ? alu_f : Add;
     Data alu_result = alu(getAddr(rVal1), getAddr(aluVal2), alu_f);
 
+    // TODO: Can we reuse the existing offset calculation result?
+
     Tuple2#(CapPipe,Bool) cap_alu_result_with_exact = capALU(rVal1, aluVal2, dInst.capFunc);
     CapPipe cap_alu_result = tpl_1(cap_alu_result_with_exact);
     Bool cap_exact = tpl_2(cap_alu_result_with_exact);
@@ -407,7 +418,8 @@ function ExecResult basicExec(DecodedInst dInst, CapPipe rVal1, CapPipe rVal2, C
     cf.taken = aluBr(getAddr(rVal1), getAddr(rVal2), br_f);
     cf.nextPc = brAddrCalc(pcc, rVal1, dInst.iType, fromMaybe(0,getDInstImm(dInst)), cf.taken, orig_inst, newPcc);
 
-    Maybe#(CSR_XCapCause) capException = capChecksExec(rVal1, aluVal2, nullCap, dInst.capChecks, cap_exact);
+    let imm = fromMaybe(0, getDInstImm(dInst));
+    Maybe#(CSR_XCapCause) capException = capChecksExec(rVal1, aluVal2, nullCap, dInst.capChecks, cap_exact, imm[11:0]);
     if (dInst.execFunc matches tagged Br .unused) begin
         rVal1 = cf.nextPc;
         if (!cf.taken) dInst.capChecks.check_enable = False;

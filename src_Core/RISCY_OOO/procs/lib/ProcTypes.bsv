@@ -303,6 +303,10 @@ typedef enum {
 } SetBoundsFunc deriving(Bits, Eq, FShow);
 
 typedef enum {
+    SetStackFrameSize
+} SetStackFrameSizeFunc deriving(Bits, Eq, FShow);
+
+typedef enum {
     Write, Set, Clear
 } CSRAccessFunc deriving(Bits, Eq, FShow);
 
@@ -325,6 +329,7 @@ typedef enum {
 typedef union tagged {
     ModifyOffsetFunc ModifyOffset;
     SetBoundsFunc SetBounds;
+    SetStackFrameSizeFunc SetStackFrameSize;
     SpecialRWFunc SpecialRW;
     AddrSource SetAddr;
     void Seal;

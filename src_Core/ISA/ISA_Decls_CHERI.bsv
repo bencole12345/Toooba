@@ -112,10 +112,11 @@ Opcode   op_cap_Manip = 7'h5b;
 // op_cap_Manip opcode subdivision
 
 // f3 selects between immediate and 3-reg instructions
-Bit #(3) f3_cap_ThreeOp             = 3'h0;
-Bit #(3) f3_cap_CIncOffsetImmediate = 3'h1;
-Bit #(3) f3_cap_CSetBoundsImmediate = 3'h2;
-// 3'h3-3'h7 unused
+Bit #(3) f3_cap_ThreeOp                     = 3'h0;
+Bit #(3) f3_cap_CIncOffsetImmediate         = 3'h1;
+Bit #(3) f3_cap_CSetBoundsImmediate         = 3'h2;
+Bit #(3) f3_cap_CSetStackFrameSizeImmediate = 3'h3;
+// 3'h4-3'h7 unused
 
 // ================================================================
 // op_cap_ThreeOp opcode subdivision
