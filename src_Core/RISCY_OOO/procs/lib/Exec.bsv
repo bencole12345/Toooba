@@ -325,6 +325,8 @@ function Data capInspect(CapPipe a, CapPipe b, CapInspectFunc func);
                        tagged RES1: otype_res1_ext;
                        tagged SEALED_WITH_TYPE .t: zeroExtend(t);
                    endcase
+               tagged GetStackFrameSize      :
+                   zeroExtend(getStackFrameSize(a));
                tagged ToPtr                  :
                    (isValidCap(a) ? (getAddr(a) - getBase(b)) : 0);
                default: ?;

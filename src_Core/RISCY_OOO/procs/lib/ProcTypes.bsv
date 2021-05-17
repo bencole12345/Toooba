@@ -356,6 +356,7 @@ typedef union tagged {
     void GetFlags;
     void GetPerm;
     void GetType;
+    void GetStackFrameSize;
     void ToPtr;
 } CapInspectFunc deriving(Bits, Eq, FShow);
 

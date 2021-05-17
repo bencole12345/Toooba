@@ -166,26 +166,27 @@ Bit #(5) rd_cap_CCall          = 5'h01;
 // f5rs2 selects between 2-reg operations (f5rs2 instead of f5 because f5
 //        is already used in RISC-V and is in a different position
 
-Bit #(5) f5rs2_cap_CGetPerm    = 5'h00;
-Bit #(5) f5rs2_cap_CGetType    = 5'h01;
-Bit #(5) f5rs2_cap_CGetBase    = 5'h02;
-Bit #(5) f5rs2_cap_CGetLen     = 5'h03;
-Bit #(5) f5rs2_cap_CGetTag     = 5'h04;
-Bit #(5) f5rs2_cap_CGetSealed  = 5'h05;
-Bit #(5) f5rs2_cap_CGetOffset  = 5'h06;
-Bit #(5) f5rs2_cap_CGetFlags   = 5'h07;
-Bit #(5) f5rs2_cap_CRRL        = 5'h08;
-Bit #(5) f5rs2_cap_CRAM        = 5'h09;
-Bit #(5) f5rs2_cap_CMove       = 5'h0a;
-Bit #(5) f5rs2_cap_CClearTag   = 5'h0b;
-Bit #(5) f5rs2_cap_CJALR       = 5'h0c;
-Bit #(5) f5rs2_cap_CClearReg   = 5'h0d;
+Bit #(5) f5rs2_cap_CGetPerm           = 5'h00;
+Bit #(5) f5rs2_cap_CGetType           = 5'h01;
+Bit #(5) f5rs2_cap_CGetBase           = 5'h02;
+Bit #(5) f5rs2_cap_CGetLen            = 5'h03;
+Bit #(5) f5rs2_cap_CGetTag            = 5'h04;
+Bit #(5) f5rs2_cap_CGetSealed         = 5'h05;
+Bit #(5) f5rs2_cap_CGetOffset         = 5'h06;
+Bit #(5) f5rs2_cap_CGetFlags          = 5'h07;
+Bit #(5) f5rs2_cap_CRRL               = 5'h08;
+Bit #(5) f5rs2_cap_CRAM               = 5'h09;
+Bit #(5) f5rs2_cap_CMove              = 5'h0a;
+Bit #(5) f5rs2_cap_CClearTag          = 5'h0b;
+Bit #(5) f5rs2_cap_CJALR              = 5'h0c;
+Bit #(5) f5rs2_cap_CClearReg          = 5'h0d;
 // 5'h0e unused
-Bit #(5) f5rs2_cap_CGetAddr    = 5'h0f;
-Bit #(5) f5rs2_cap_CClearFPReg = 5'h10;
-Bit #(5) f5rs2_cap_CSealEntry  = 5'h11;
-Bit #(5) f5rs2_cap_CLoadTags   = 5'h12;
-// 5'h13-5'h1f unused (5'h1f reserved for 1-reg instructions)
+Bit #(5) f5rs2_cap_CGetAddr           = 5'h0f;
+Bit #(5) f5rs2_cap_CClearFPReg        = 5'h10;
+Bit #(5) f5rs2_cap_CSealEntry         = 5'h11;
+Bit #(5) f5rs2_cap_CLoadTags          = 5'h12;
+Bit #(5) f5rs2_cap_CGetStackFrameSize = 5'h13;
+// 5'h14-5'h1f unused (5'h1f reserved for 1-reg instructions)
 
 // ================================================================
 // f7_cap_{Load, Store} opcode subdivision

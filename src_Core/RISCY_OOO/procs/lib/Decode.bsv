@@ -1406,6 +1406,12 @@ function DecodeResult decode(Instruction inst, Bool cap_mode);
                                     regs.src1 = Valid(tagged Gpr rs1);
                                     dInst.capChecks = memCapChecks(True);
                                 end
+                                f5rs2_cap_CGetStackFrameSize: begin
+                                    dInst.iType = Cap;
+                                    regs.dst = Valid(tagged Gpr rd);
+                                    regs.src1 = Valid(tagged Gpr rs1);
+                                    dInst.capFunc = CapInspect (GetStackFrameSize);
+                                end
                                 default: begin
                                     illegalInst = True;
                                 end
