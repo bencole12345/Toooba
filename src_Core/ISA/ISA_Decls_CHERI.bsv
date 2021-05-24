@@ -186,7 +186,8 @@ Bit #(5) f5rs2_cap_CClearFPReg        = 5'h10;
 Bit #(5) f5rs2_cap_CSealEntry         = 5'h11;
 Bit #(5) f5rs2_cap_CLoadTags          = 5'h12;
 Bit #(5) f5rs2_cap_CGetStackFrameSize = 5'h13;
-// 5'h14-5'h1f unused (5'h1f reserved for 1-reg instructions)
+Bit #(5) f5rs2_cap_CGetStackFrameBase = 5'h14;
+// 5'h15-5'h1f unused (5'h1f reserved for 1-reg instructions)
 
 // ================================================================
 // f7_cap_{Load, Store} opcode subdivision

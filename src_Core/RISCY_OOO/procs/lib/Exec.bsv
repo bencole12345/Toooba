@@ -217,11 +217,6 @@ function Tuple2#(CapPipe, Bool) setBoundsALU(CapPipe cap, Data len, SetBoundsFun
 endfunction
 
 (* noinline *)
-function CapPipe setStackFrameSizeALU(CapPipe cap, Bit#(3) value, SetStackFrameSizeFunc setStackFrameSizeOp);
-    return setStackFrameSize(cap, value);
-endfunction
-
-(* noinline *)
 function CapPipe specialRWALU(CapPipe cap, CapPipe oldCap, SpecialRWFunc scrType);
     function csrOp (oldOffset, val, f) =
         case (f)
@@ -249,8 +244,10 @@ function Tuple2#(CapPipe,Bool) capModify(CapPipe a, CapPipe b, CapModifyFunc fun
                 t(modifyOffset(a, getAddr(b), offsetOp == IncOffset).value);
             tagged SetBounds .boundsOp    :
                 setBoundsALU(a, getAddr(b), boundsOp);
-            tagged SetStackFrameSize .setStackFrameSizeOp :
+            tagged SetStackFrameSize :
                 t(setStackFrameSize(a, truncate(getStackFrameSize(b))));
+            tagged GetStackFrameBase :
+                t(getStackFrameBase(a));
             tagged SpecialRW .scrType     :
                 t(case (scrType) matches
                       tagged TCC: b;

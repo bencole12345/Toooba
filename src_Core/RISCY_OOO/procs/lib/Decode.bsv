@@ -972,7 +972,7 @@ function DecodeResult decode(Instruction inst, Bool cap_mode);
                     regs.dst = Valid(tagged Gpr rd);
                     regs.src1 = Valid(tagged Gpr rs1);
                     dInst.imm = Valid(immIunsigned);
-                    dInst.capFunc = CapModify (SetStackFrameSize (SetStackFrameSize));
+                    dInst.capFunc = CapModify (SetStackFrameSize);
                     dInst.csr = Invalid;
                     dInst.scr = Invalid;
                 end
@@ -1350,6 +1350,13 @@ function DecodeResult decode(Instruction inst, Bool cap_mode);
                                     regs.dst = Valid(tagged Gpr rd);
                                     regs.src1 = Valid(tagged Gpr rs1);
                                     dInst.capFunc = CapModify (SealEntry);
+                                end
+                                f5rs2_cap_CGetStackFrameBase: begin
+                                    dInst.capChecks.src1_tag = True;
+                                    dInst.iType = Cap;
+                                    regs.dst = Valid(tagged Gpr rd);
+                                    regs.src1 = Valid(tagged Gpr rs1);
+                                    dInst.capFunc = CapModify (GetStackFrameBase);
                                 end
                                 f5rs2_cap_CGetOffset: begin
                                     dInst.iType = Cap;
