@@ -96,7 +96,7 @@ function Maybe#(CSR_XCapCause) capChecksExec(CapPipe a, CapPipe b, CapPipe ddc, 
     else if (toCheck.cap_exact                && !cap_exact)
         result = e1(cheriExcRepresentViolation);
     else if (toCheck.stack_lifetime           && !lifetimesAreValid(a, b, offset))
-        result = e2(cheriExcStackLifetimeViolation);
+        result = e1(cheriExcStackLifetimeViolation);
     return result;
 endfunction
 
