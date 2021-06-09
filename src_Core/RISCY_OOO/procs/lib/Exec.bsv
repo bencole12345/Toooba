@@ -95,7 +95,7 @@ function Maybe#(CSR_XCapCause) capChecksExec(CapPipe a, CapPipe b, CapPipe ddc, 
         result = e1(cheriExcLengthViolation);
     else if (toCheck.cap_exact                && !cap_exact)
         result = e1(cheriExcRepresentViolation);
-    else if (toCheck.stack_lifetime           && !lifetimesAreValid(a, b, offset))
+    else if (toCheck.stack_lifetime           && !lifetimesAreValid(b, a, offset))
         result = e1(cheriExcStackLifetimeViolation);
     return result;
 endfunction
@@ -245,7 +245,7 @@ function Tuple2#(CapPipe,Bool) capModify(CapPipe a, CapPipe b, CapModifyFunc fun
             tagged SetBounds .boundsOp    :
                 setBoundsALU(a, getAddr(b), boundsOp);
             tagged SetStackFrameSize :
-                t(setStackFrameSize(a, truncate(getStackFrameSize(b))));
+                t(setStackFrameSize(a, truncate(getAddr(b))));
             tagged GetStackFrameBase :
                 t(getStackFrameBase(a));
             tagged SpecialRW .scrType     :

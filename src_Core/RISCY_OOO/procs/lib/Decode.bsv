@@ -965,16 +965,17 @@ function DecodeResult decode(Instruction inst, Bool cap_mode);
                     dInst.capFunc = CapModify (SetBounds (SetBounds));
                 end
                 f3_cap_CSetStackFrameSizeImmediate: begin
-                    dInst.capChecks.src1_unsealed = True;
-                    dInst.capChecks.check_enable = True;
-                    dInst.capChecks.check_authority_src = Src1;
+                    // dInst.capChecks.src1_unsealed = True;
+                    // dInst.capChecks.check_enable = True;
+                    // dInst.capChecks.check_authority_src = Src1;
+
                     dInst.iType = Cap;
                     regs.dst = Valid(tagged Gpr rd);
                     regs.src1 = Valid(tagged Gpr rs1);
                     dInst.imm = Valid(immIunsigned);
                     dInst.capFunc = CapModify (SetStackFrameSize);
-                    dInst.csr = Invalid;
-                    dInst.scr = Invalid;
+                    // dInst.csr = Invalid;
+                    // dInst.scr = Invalid;
                 end
                 f3_cap_ThreeOp: begin
                     case (funct7)
